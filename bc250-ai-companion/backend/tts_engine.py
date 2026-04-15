@@ -1,52 +1,123 @@
 """
 Motor de Texto a Voz (TTS) para BC-250 AI Companion
-Soporte offline con Piper TTS
+Soporte multi-engine: MeloTTS, Piper TTS, Coqui XTTS
+Optimizado para AMD BC-250 con memoria unificada GDDR6
 """
 import os
 import subprocess
 import wave
 import tempfile
 from pathlib import Path
-from typing import Optional, Generator
+from typing import Optional, Generator, Dict, List
 import shutil
+import json
 
 
 class TTSEngine:
     def __init__(self):
         self.piper_path = None
+        self.melotts_available = False
+        self.xtts_available = False
         self.voice_model = None
+        self.current_engine = "auto"  # auto, piper, melotts, xtts
         self.data_dir = Path("/workspace/bc250-ai-companion/data/tts_models")
+        self.profiles_dir = Path("/workspace/bc250-ai-companion/data/profiles")
         self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.profiles_dir.mkdir(parents=True, exist_ok=True)
         
-        # Detectar Piper TTS
-        self._detect_piper()
+        # Detectar engines disponibles
+        self._detect_engines()
     
-    def _detect_piper(self):
-        """Detecta si Piper TTS está instalado"""
-        # Buscar en PATH
+    def _detect_engines(self):
+        """Detecta engines TTS disponibles en el sistema"""
+        # Detectar Piper TTS
         piper_exec = shutil.which("piper")
         if piper_exec:
             self.piper_path = piper_exec
             print(f"Piper detectado en: {self.piper_path}")
         else:
-            print("Piper TTS no encontrado. El audio estará deshabilitado.")
+            print("Piper TTS no encontrado")
+        
+        # Detectar MeloTTS
+        try:
+            import melo.api
+            self.melotts_available = True
+            print("MeloTTS detectado")
+        except ImportError:
+            print("MeloTTS no disponible (pip install melo-tts)")
+        
+        # Detectar Coqui XTTS
+        try:
+            from TTS.api import TTS
+            self.xtts_available = True
+            print("Coqui XTTS detectado")
+        except ImportError:
+            print("Coqui XTTS no disponible (pip install TTS)")
+        
+        # Seleccionar engine por defecto (prioridad: MeloTTS > XTTS > Piper)
+        if self.melotts_available:
+            self.current_engine = "melotts"
+        elif self.xtts_available:
+            self.current_engine = "xtts"
+        elif self.piper_path:
+            self.current_engine = "piper"
+        else:
+            print("Ningún engine TTS disponible. El audio estará deshabilitado.")
     
-    def list_available_voices(self) -> list:
-        """Lista voces disponibles"""
+    def list_available_voices(self) -> List[Dict]:
+        """Lista todas las voces disponibles con información detallada"""
         voices = []
+        
+        # Voces desde perfiles importados
+        if self.profiles_dir.exists():
+            for profile_dir in self.profiles_dir.glob("voice_*"):
+                profile_json = profile_dir / "profile.json"
+                if profile_json.exists():
+                    with open(profile_json, 'r', encoding='utf-8') as f:
+                        profile_data = json.load(f)
+                        voices.append({
+                            "id": profile_data.get("id"),
+                            "name": profile_data.get("name"),
+                            "description": profile_data.get("description", ""),
+                            "engine": profile_data.get("engine", "auto"),
+                            "language": profile_data.get("language", "es"),
+                            "source": "imported"
+                        })
+        
+        # Voces nativas de Piper (archivos .onnx directos)
         if self.data_dir.exists():
             for model_file in self.data_dir.glob("*.onnx"):
                 voice_name = model_file.stem.replace(".quantized", "")
-                voices.append(voice_name)
+                # Verificar si ya está en perfiles importados
+                if not any(v["name"] == voice_name for v in voices):
+                    voices.append({
+                        "id": voice_name,
+                        "name": voice_name,
+                        "description": "Voz Piper nativa",
+                        "engine": "piper",
+                        "language": voice_name.split("_")[0] if "_" in voice_name else "es",
+                        "source": "native"
+                    })
+        
         return voices
     
-    def download_voice(self, voice_id: str) -> bool:
-        """Descarga un modelo de voz (implementación básica)"""
-        # En producción, descargaría desde HuggingFace
-        # Ejemplo: es_ES-dave-f-medium.onnx
-        print(f"Descargando voz: {voice_id}")
-        # Aquí iría la lógica de descarga real
-        return True
+    def load_voice_profile(self, voice_id: str) -> bool:
+        """Carga una voz desde un perfil importado"""
+        profile_path = self.profiles_dir / f"voice_{voice_id}"
+        if not profile_path.exists():
+            print(f"Perfil de voz no encontrado: {voice_id}")
+            return False
+        
+        profile_json = profile_path / "profile.json"
+        if profile_json.exists():
+            with open(profile_json, 'r', encoding='utf-8') as f:
+                profile_data = json.load(f)
+                self.voice_model = profile_data
+                self.current_engine = profile_data.get("engine", "auto")
+                print(f"Voz cargada: {profile_data.get('name')} (engine: {self.current_engine})")
+                return True
+        
+        return False
     
     def synthesize(self, text: str, voice: Optional[str] = None, 
                    output_file: Optional[str] = None) -> Optional[str]:
@@ -121,4 +192,14 @@ class TTSEngine:
     
     def is_available(self) -> bool:
         """Verifica si el TTS está disponible"""
-        return self.piper_path is not None
+        return self.piper_path is not None or self.melotts_available or self.xtts_available
+    
+    def get_engine_info(self) -> Dict:
+        """Retorna información sobre los engines disponibles"""
+        return {
+            "current_engine": self.current_engine,
+            "piper": self.piper_path is not None,
+            "melotts": self.melotts_available,
+            "xtts": self.xtts_available,
+            "voices_count": len(self.list_available_voices())
+        }

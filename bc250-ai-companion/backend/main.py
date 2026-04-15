@@ -104,7 +104,7 @@ def get_memory_for_model(model_name: str) -> MemoryCore:
 @app.get("/")
 async def root():
     """Página principal - sirve el frontend"""
-    return FileResponse('frontend/index.html')
+    return FileResponse('../frontend/index.html')
 
 @app.get("/health")
 async def health_check():
@@ -262,20 +262,122 @@ async def websocket_chat(websocket: WebSocket, client_id: int):
     active_connections[client_id] = websocket
     logger.info(f"Cliente {client_id} conectado vía WebSocket")
     
+    # Usar modelo por defecto y memoria
+    model = DEFAULT_MODEL
+    memory = get_memory_for_model(model)
+    
     try:
         while True:
             data = await websocket.receive_text()
             
-            # Procesar mensaje
-            # TODO: Implementar procesamiento real
-            response_data = {
-                "type": "response",
-                "content": f"Eco: {data}",
+            # Parsear mensaje JSON
+            try:
+                message_data = json.loads(data)
+                message = message_data.get("message", "")
+                use_web = message_data.get("use_web", False)
+            except json.JSONDecodeError:
+                message = data
+                use_web = False
+            
+            if not message:
+                continue
+            
+            # Detectar búsqueda web si se solicita
+            web_context = ""
+            if use_web and web_search.is_available():
+                web_context = web_search.search_and_format(message)
+                logger.info(f"Búsqueda web realizada: {message}")
+            
+            # Obtener contexto relevante de la memoria
+            relevant_context = memory.get_relevant_context(message, n_results=3)
+            
+            # Construir mensajes para Ollama
+            messages = []
+            
+            # Añadir contexto web si existe
+            if web_context:
+                messages.append({
+                    "role": "system",
+                    "content": f"Contexto de internet (bajo demanda):\n{web_context}"
+                })
+            
+            # Añadir contexto de memoria si existe
+            if relevant_context:
+                context_text = "\n".join(relevant_context)
+                messages.append({
+                    "role": "system",
+                    "content": f"Memoria relevante de conversaciones anteriores:\n{context_text}"
+                })
+            
+            # Añadir preferencias del usuario
+            prefs = memory.preferences
+            system_instruction = f"Eres un asistente útil. Idioma: {prefs.get('language', 'es')}. Tono: {prefs.get('tone', 'friendly')}."
+            if prefs.get("custom_instructions"):
+                system_instruction += f" Preferencias: {prefs['custom_instructions'][-1]['text']}"
+            
+            messages.append({"role": "user", "content": message})
+            
+            # Enviar indicador de "escribiendo..."
+            await websocket.send_json({
+                "type": "status",
+                "content": "thinking",
                 "timestamp": datetime.now().isoformat()
-            }
+            })
             
-            await websocket.send_json(response_data)
+            # Generar respuesta con Ollama
+            try:
+                response = ollama_manager.generate_response(
+                    model=model,
+                    prompt=message,
+                    messages=messages,
+                    stream=True
+                )
+                
+                full_response = ""
+                if response.status_code == 200:
+                    for line in response.iter_lines():
+                        if line:
+                            try:
+                                chunk = json.loads(line.decode('utf-8'))
+                                if "message" in chunk and "content" in chunk["message"]:
+                                    content = chunk["message"]["content"]
+                                    full_response += content
+                                    
+                                    # Enviar fragmento en tiempo real
+                                    await websocket.send_json({
+                                        "type": "chunk",
+                                        "content": content,
+                                        "timestamp": datetime.now().isoformat()
+                                    })
+                            except json.JSONDecodeError:
+                                continue
+                    
+                    # Guardar interacción en memoria
+                    memory.add_interaction(message, full_response)
+                    
+                    # Enviar finalización
+                    await websocket.send_json({
+                        "type": "complete",
+                        "content": full_response,
+                        "model": model,
+                        "conversation_id": AppState.conversation_id if hasattr(AppState, 'conversation_id') else "default",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                else:
+                    await websocket.send_json({
+                        "type": "error",
+                        "content": "Error en generación de respuesta",
+                        "timestamp": datetime.now().isoformat()
+                    })
             
+            except Exception as e:
+                logger.error(f"Error generando respuesta: {e}")
+                await websocket.send_json({
+                    "type": "error",
+                    "content": str(e),
+                    "timestamp": datetime.now().isoformat()
+                })
+    
     except WebSocketDisconnect:
         logger.info(f"Cliente {client_id} desconectado")
         del active_connections[client_id]
@@ -287,6 +389,7 @@ async def websocket_chat(websocket: WebSocket, client_id: int):
             pass
         if client_id in active_connections:
             del active_connections[client_id]
+
 
 @app.post("/api/memory/migrate")
 async def migrate_memory(request: MemoryMigrationRequest):
@@ -372,7 +475,7 @@ async def get_memory_stats():
 
 # Montar frontend estático
 try:
-    app.mount("/static", StaticFiles(directory="frontend"), name="static")
+    app.mount("/static", StaticFiles(directory="../frontend"), name="static")
 except Exception as e:
     logger.warning(f"No se pudo montar directorio estático: {e}")
 

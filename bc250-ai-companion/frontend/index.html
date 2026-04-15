@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BC-250 AI Companion</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4a90d9">
+    <meta name="description" content="Tu compañero de IA personal y privado">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1>🤖 BC-250 AI Companion</h1>
+                <div class="status-indicators">
+                    <span class="status-badge" id="connection-status">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Conectado</span>
+                    </span>
+                    <span class="status-badge" id="model-indicator">
+                        🧠 <span id="current-model">gemma4:e4b</span>
+                    </span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Área de Chat Principal -->
+        <main class="chat-container">
+            <div class="chat-messages" id="chat-messages">
+                <!-- Mensaje de bienvenida -->
+                <div class="message assistant-message">
+                    <div class="message-avatar">🤖</div>
+                    <div class="message-content">
+                        <p>¡Hola! Soy tu compañero de IA personal. Estoy aquí para ayudarte con lo que necesites. Puedo recordar nuestras conversaciones y aprender de tus preferencias.</p>
+                        <p class="message-timestamp">Ahora</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Indicador de escritura -->
+            <div class="typing-indicator" id="typing-indicator" style="display: none;">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        </main>
+
+        <!-- Controles de Entrada -->
+        <footer class="input-container">
+            <!-- Controles de Voz -->
+            <div class="voice-controls">
+                <button class="voice-btn" id="mic-btn" title="Activar micrófono (Push to Talk)">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                        <line x1="12" y1="19" x2="12" y2="23"></line>
+                        <line x1="8" y1="23" x2="16" y2="23"></line>
+                    </svg>
+                </button>
+                
+                <button class="toggle-btn" id="audio-toggle" title="Activar/desactivar audio automático">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    </svg>
+                    <span class="toggle-label">Audio ON</span>
+                </button>
+            </div>
+
+            <!-- Campo de Entrada de Texto -->
+            <div class="input-wrapper">
+                <textarea 
+                    id="message-input" 
+                    placeholder="Escribe tu mensaje... (usa /web para búsqueda en internet)"
+                    rows="1"
+                    autocomplete="off"
+                ></textarea>
+                <button class="send-btn" id="send-btn" title="Enviar mensaje">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Botón de Configuración -->
+            <button class="settings-btn" id="settings-btn" title="Configuración y modelos">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+            </button>
+        </footer>
+    </div>
+
+    <!-- Panel de Configuración (Modal) -->
+    <div class="modal" id="settings-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚙️ Configuración</h2>
+                <button class="close-btn" id="close-settings">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <!-- Sección de Modelos -->
+                <section class="settings-section">
+                    <h3>🧠 Modelos Disponibles</h3>
+                    <div class="models-list" id="models-list">
+                        <!-- Se llena dinámicamente -->
+                        <div class="model-item active">
+                            <span class="model-name">gemma4:e4b</span>
+                            <span class="model-size">~3 GB</span>
+                            <button class="model-select-btn">Seleccionar</button>
+                        </div>
+                    </div>
+                    
+                    <div class="add-model">
+                        <input type="text" id="new-model-name" placeholder="Nombre del modelo (ej: llama3.2:3b)">
+                        <button id="download-model-btn">Descargar</button>
+                    </div>
+                </section>
+
+                <!-- Sección de Memoria -->
+                <section class="settings-section">
+                    <h3>💾 Memoria</h3>
+                    <div class="memory-actions">
+                        <button id="migrate-memory-btn" class="action-btn">
+                            📋 Migrar Memoria a Otro Modelo
+                        </button>
+                        <button id="export-memory-btn" class="action-btn">
+                            💾 Exportar Memoria
+                        </button>
+                        <button id="clear-memory-btn" class="action-btn danger">
+                            🗑️ Limpiar Memoria
+                        </button>
+                    </div>
+                    <div class="memory-stats" id="memory-stats">
+                        <!-- Estadísticas dinámicas -->
+                    </div>
+                </section>
+
+                <!-- Sección de Preferencias -->
+                <section class="settings-section">
+                    <h3>🎛️ Preferencias</h3>
+                    <div class="preference-item">
+                        <label for="theme-select">Tema:</label>
+                        <select id="theme-select">
+                            <option value="auto">Automático</option>
+                            <option value="light">Claro</option>
+                            <option value="dark">Oscuro</option>
+                        </select>
+                    </div>
+                    <div class="preference-item">
+                        <label for="language-select">Idioma:</label>
+                        <select id="language-select">
+                            <option value="es">Español</option>
+                            <option value="en">English</option>
+                        </select>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notificaciones Toast -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

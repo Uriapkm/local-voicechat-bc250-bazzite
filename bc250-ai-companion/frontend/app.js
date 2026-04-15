@@ -34,7 +34,8 @@ const elements = {
     modelsList: document.getElementById('models-list'),
     newModelName: document.getElementById('new-model-name'),
     downloadModelBtn: document.getElementById('download-model-btn'),
-    toastContainer: document.getElementById('toast-container')
+    toastContainer: document.getElementById('toast-container'),
+    memoryStats: document.getElementById('memory-stats')
 };
 
 // Inicialización
@@ -98,6 +99,15 @@ function initializeEventListeners() {
     
     // Descarga de modelos
     elements.downloadModelBtn.addEventListener('click', downloadModel);
+    
+    // Acciones de memoria
+    const migrateMemoryBtn = document.getElementById('migrate-memory-btn');
+    const exportMemoryBtn = document.getElementById('export-memory-btn');
+    const clearMemoryBtn = document.getElementById('clear-memory-btn');
+    
+    if (migrateMemoryBtn) migrateMemoryBtn.addEventListener('click', migrateMemory);
+    if (exportMemoryBtn) exportMemoryBtn.addEventListener('click', exportMemory);
+    if (clearMemoryBtn) clearMemoryBtn.addEventListener('click', clearMemory);
 }
 
 // Conectar WebSocket
@@ -131,20 +141,79 @@ function connectWebSocket() {
 
 // Manejar mensajes del WebSocket
 function handleWebSocketMessage(data) {
-    hideTypingIndicator();
+    if (data.type === 'status' && data.content === 'thinking') {
+        showTypingIndicator();
+        return;
+    }
     
-    if (data.type === 'response') {
-        addMessage(data.content, 'assistant');
-        
+    if (data.type === 'chunk') {
+        // Streaming en tiempo real - actualizar o crear mensaje
+        updateStreamingMessage(data.content);
+        return;
+    }
+    
+    if (data.type === 'complete') {
+        hideTypingIndicator();
         // Reproducir audio si está activado
         if (AppState.audioEnabled) {
             playTextToSpeech(data.content);
         }
-    } else if (data.type === 'stream_start') {
-        showTypingIndicator();
-    } else if (data.type === 'stream_end') {
-        hideTypingIndicator();
+        return;
     }
+    
+    if (data.type === 'error') {
+        hideTypingIndicator();
+        showToast('Error: ' + data.content, 'error');
+        return;
+    }
+    
+    // Fallback para tipo 'response' (compatibilidad)
+    if (data.type === 'response') {
+        addMessage(data.content, 'assistant');
+        if (AppState.audioEnabled) {
+            playTextToSpeech(data.content);
+        }
+    }
+}
+
+// Variable para tracking del mensaje en streaming
+let streamingMessageElement = null;
+
+// Actualizar mensaje en streaming
+function updateStreamingMessage(content) {
+    if (!streamingMessageElement) {
+        // Crear nuevo mensaje del asistente
+        streamingMessageElement = createMessageElement('assistant');
+        elements.chatMessages.appendChild(streamingMessageElement);
+        scrollToBottom();
+    }
+    
+    // Actualizar contenido del mensaje
+    const contentElement = streamingMessageElement.querySelector('.message-content p');
+    contentElement.textContent += content;
+    scrollToBottom();
+}
+
+// Crear elemento de mensaje vacío
+function createMessageElement(sender) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${sender}-message`;
+    
+    const avatar = sender === 'user' ? '👤' : '🤖';
+    const timestamp = new Date().toLocaleTimeString('es-ES', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
+    
+    messageDiv.innerHTML = `
+        <div class="message-avatar">${avatar}</div>
+        <div class="message-content">
+            <p></p>
+            <p class="message-timestamp">${timestamp}</p>
+        </div>
+    `;
+    
+    return messageDiv;
 }
 
 // Enviar mensaje
@@ -312,20 +381,32 @@ async function processAudio(audioBlob) {
     showToast('Procesando audio...', 'info');
     
     try {
-        // TODO: Implementar STT real con el backend
-        // Por ahora, simulamos con un mensaje placeholder
+        // Enviar audio al backend para transcripción
         const formData = new FormData();
-        formData.append('audio', audioBlob, 'recording.webm');
+        formData.append('audio_file', audioBlob, 'recording.webm');
         
-        // Simulación - en producción llamar al endpoint de STT
-        const transcribedText = "Texto transcrito desde audio (pendiente de implementación)";
-        elements.messageInput.value = transcribedText;
-        sendMessage();
+        const response = await fetch(`${API_BASE_URL}/api/audio/transcribe`, {
+            method: 'POST',
+            body: formData
+        });
         
-        showToast('Audio procesado', 'success');
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Error en la transcripción');
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.text) {
+            elements.messageInput.value = data.text;
+            sendMessage();
+            showToast('Audio transcrito correctamente', 'success');
+        } else {
+            throw new Error('Transcripción vacía o inválida');
+        }
     } catch (error) {
         console.error('Error al procesar audio:', error);
-        showToast('Error al procesar audio', 'error');
+        showToast('Error al procesar audio: ' + error.message, 'error');
     }
 }
 
@@ -429,12 +510,24 @@ async function downloadModel() {
     
     showToast(`Descargando modelo ${modelName}...`, 'info');
     
-    // TODO: Implementar descarga real con el backend
-    setTimeout(() => {
-        showToast('Descarga completada (simulado)', 'success');
-        elements.newModelName.value = '';
-        loadModels();
-    }, 2000);
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/models/pull?model_name=${encodeURIComponent(modelName)}`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showToast(`Modelo ${modelName} descargado correctamente`, 'success');
+            elements.newModelName.value = '';
+            loadModels();
+        } else {
+            showToast(data.detail || 'Error al descargar modelo', 'error');
+        }
+    } catch (error) {
+        console.error('Error al descargar modelo:', error);
+        showToast('Error de conexión al descargar modelo', 'error');
+    }
 }
 
 // Configuración y preferencias
@@ -515,4 +608,82 @@ if ('serviceWorker' in navigator) {
             console.log('ServiceWorker falló:', error);
         });
     });
+}
+
+// Funciones de gestión de memoria
+async function migrateMemory() {
+    const models = await fetch(`${API_BASE_URL}/api/models`).then(r => r.json()).then(d => d.models || []);
+    if (models.length < 2) {
+        showToast('Necesitas al menos 2 modelos para migrar memoria', 'warning');
+        return;
+    }
+    
+    const sourceModel = prompt(`Modelos disponibles: ${models.map(m => m.name).join(', ')}\n\nIntroduce el modelo de ORIGEN:`);
+    if (!sourceModel) return;
+    
+    const targetModel = prompt(`Introduce el modelo de DESTINO:`);
+    if (!targetModel) return;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/memory/migrate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source_model: sourceModel, target_model: targetModel })
+        });
+        
+        const data = await response.json();
+        if (response.ok && data.success) {
+            showToast('Memoria migrada correctamente', 'success');
+        } else {
+            showToast(data.detail || 'Error al migrar memoria', 'error');
+        }
+    } catch (error) {
+        showToast('Error de conexión', 'error');
+    }
+}
+
+async function exportMemory() {
+    const model = AppState.currentModel;
+    if (!confirm(`¿Exportar memoria del modelo ${model}?`)) return;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/memory/export?model=${encodeURIComponent(model)}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const blob = new Blob([JSON.stringify(data.memory, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `bc250_memory_${model.replace(/[:.]/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Memoria exportada correctamente', 'success');
+        } else {
+            showToast(data.detail || 'Error al exportar memoria', 'error');
+        }
+    } catch (error) {
+        showToast('Error de conexión', 'error');
+    }
+}
+
+async function clearMemory() {
+    const model = AppState.currentModel;
+    if (!confirm(`⚠️ ¿Estás seguro de borrar TODA la memoria del modelo ${model}? Esta acción no se puede deshacer.`)) return;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/memory/clear?model=${encodeURIComponent(model)}`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        if (response.ok && data.success) {
+            showToast('Memoria eliminada correctamente', 'success');
+            loadMemoryStats();
+        } else {
+            showToast(data.detail || 'Error al eliminar memoria', 'error');
+        }
+    } catch (error) {
+        showToast('Error de conexión', 'error');
+    }
 }

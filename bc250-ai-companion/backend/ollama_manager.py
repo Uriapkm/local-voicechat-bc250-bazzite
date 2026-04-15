@@ -6,13 +6,13 @@ import subprocess
 import json
 import requests
 from typing import List, Dict, Optional
-from config import OLLAMA_HOST, DEFAULT_MODEL
+from config import OLLAMA_BASE_URL, DEFAULT_MODEL
 
 
 class OllamaManager:
     def __init__(self):
-        self.host = OLLAMA_HOST
-        self.base_url = f"http://{self.host}"
+        self.host = OLLAMA_BASE_URL
+        self.base_url = self.host
     
     def check_ollama_installed(self) -> bool:
         """Verifica si Ollama está instalado y corriendo"""

@@ -1,0 +1,65 @@
+# Containerfile para BC-250 AI Companion
+# Entorno aislado para Bazzite OS usando Distrobox/Podman
+
+FROM fedora:39
+
+# Metadatos
+LABEL name="bc250-ai-companion"
+LABEL description="AI Companion para AMD BC-250 con Bazzite"
+LABEL version="1.0"
+
+# Actualizar sistema base
+RUN dnf upgrade -y
+
+# Instalar dependencias del sistema
+RUN dnf install -y \
+    python3 \
+    python3-pip \
+    python3-devel \
+    gcc \
+    gcc-c++ \
+    make \
+    git \
+    curl \
+    wget \
+    mesa-libGL \
+    vulkan-loader \
+    vulkan-tools \
+    ocl-icd \
+    ocl-icd-devel \
+    && dnf clean all
+
+# Configurar usuario no root (opcional, para mayor seguridad)
+RUN useradd -m -u 1000 aiuser
+
+# Establecer directorio de trabajo
+WORKDIR /app
+
+# Copiar requirements e instalar dependencias de Python
+COPY container/requirements.txt /app/requirements.txt
+RUN pip3 install --no-cache-dir --user -r requirements.txt
+
+# Copiar código de la aplicación
+COPY backend/ /app/backend/
+COPY frontend/ /app/frontend/
+COPY data/ /app/data/
+
+# Crear directorios necesarios
+RUN mkdir -p /app/data/vector_db /app/data/models_cache /app/data/logs
+
+# Establecer permisos
+RUN chown -R aiuser:aiuser /app
+
+# Cambiar a usuario no root
+USER aiuser
+
+# Variables de entorno
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PATH=/home/aiuser/.local/bin:$PATH
+
+# Puertos expuestos
+EXPOSE 8080
+
+# Comando por defecto
+CMD ["python3", "backend/main.py"]

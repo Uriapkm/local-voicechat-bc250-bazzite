@@ -98,69 +98,193 @@
 
     <!-- Panel de Configuración (Modal) -->
     <div class="modal" id="settings-modal">
-        <div class="modal-content">
+        <div class="modal-content modal-large">
             <div class="modal-header">
                 <h2>⚙️ Configuración</h2>
                 <button class="close-btn" id="close-settings">&times;</button>
             </div>
             
             <div class="modal-body">
-                <!-- Sección de Modelos -->
-                <section class="settings-section">
-                    <h3>🧠 Modelos Disponibles</h3>
-                    <div class="models-list" id="models-list">
-                        <!-- Se llena dinámicamente -->
-                        <div class="model-item active">
-                            <span class="model-name">gemma4:e4b</span>
-                            <span class="model-size">~3 GB</span>
-                            <button class="model-select-btn">Seleccionar</button>
+                <!-- Navegación por Pestañas -->
+                <div class="settings-tabs">
+                    <button class="tab-btn active" data-tab="models">🧠 Modelos</button>
+                    <button class="tab-btn" data-tab="personalities">🎭 Personalidades</button>
+                    <button class="tab-btn" data-tab="voices">🔊 Voces</button>
+                    <button class="tab-btn" data-tab="memory">💾 Memoria</button>
+                    <button class="tab-btn" data-tab="preferences">🎛️ Preferencias</button>
+                </div>
+
+                <!-- Contenido de Pestañas -->
+                <div class="tab-content">
+                    <!-- Pestaña: Modelos -->
+                    <section class="settings-section tab-pane active" id="tab-models">
+                        <h3>🧠 Modelos Disponibles</h3>
+                        <div class="models-list" id="models-list">
+                            <!-- Se llena dinámicamente -->
                         </div>
-                    </div>
-                    
-                    <div class="add-model">
-                        <input type="text" id="new-model-name" placeholder="Nombre del modelo (ej: llama3.2:3b)">
-                        <button id="download-model-btn">Descargar</button>
-                    </div>
-                </section>
+                        
+                        <div class="add-model">
+                            <input type="text" id="new-model-name" placeholder="Nombre del modelo (ej: llama3.2:3b)">
+                            <button id="download-model-btn">Descargar</button>
+                        </div>
+                    </section>
 
-                <!-- Sección de Memoria -->
-                <section class="settings-section">
-                    <h3>💾 Memoria</h3>
-                    <div class="memory-actions">
-                        <button id="migrate-memory-btn" class="action-btn">
-                            📋 Migrar Memoria a Otro Modelo
-                        </button>
-                        <button id="export-memory-btn" class="action-btn">
-                            💾 Exportar Memoria
-                        </button>
-                        <button id="clear-memory-btn" class="action-btn danger">
-                            🗑️ Limpiar Memoria
-                        </button>
-                    </div>
-                    <div class="memory-stats" id="memory-stats">
-                        <!-- Estadísticas dinámicas -->
-                    </div>
-                </section>
+                    <!-- Pestaña: Personalidades -->
+                    <section class="settings-section tab-pane" id="tab-personalities">
+                        <div class="section-header">
+                            <h3>🎭 Personalidades</h3>
+                            <button class="btn-primary" id="create-personality-btn">➕ Crear</button>
+                        </div>
+                        
+                        <div class="profiles-grid" id="personalities-list">
+                            <!-- Se llena dinámicamente -->
+                        </div>
 
-                <!-- Sección de Preferencias -->
-                <section class="settings-section">
-                    <h3>🎛️ Preferencias</h3>
-                    <div class="preference-item">
-                        <label for="theme-select">Tema:</label>
-                        <select id="theme-select">
-                            <option value="auto">Automático</option>
-                            <option value="light">Claro</option>
-                            <option value="dark">Oscuro</option>
-                        </select>
-                    </div>
-                    <div class="preference-item">
-                        <label for="language-select">Idioma:</label>
-                        <select id="language-select">
-                            <option value="es">Español</option>
-                            <option value="en">English</option>
-                        </select>
-                    </div>
-                </section>
+                        <div class="usb-actions">
+                            <button class="btn-secondary" id="scan-usb-personality-btn">📡 Escanear USB</button>
+                            <button class="btn-secondary" id="import-personality-btn">📥 Importar</button>
+                            <button class="btn-secondary" id="export-personality-btn">📤 Exportar</button>
+                        </div>
+
+                        <!-- Formulario de Creación -->
+                        <div class="form-panel" id="personality-form-panel" style="display: none;">
+                            <h4>Nueva Personalidad</h4>
+                            <div class="form-group">
+                                <label for="personality-name">Nombre:</label>
+                                <input type="text" id="personality-name" placeholder="Ej: Asistente Amable">
+                            </div>
+                            <div class="form-group">
+                                <label for="personality-description">Descripción:</label>
+                                <textarea id="personality-description" rows="2" placeholder="Breve descripción"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="personality-prompt">System Prompt:</label>
+                                <textarea id="personality-prompt" rows="6" placeholder="Instrucciones de personalidad para el modelo..."></textarea>
+                            </div>
+                            <div class="form-actions">
+                                <button class="btn-primary" id="save-personality-btn">💾 Guardar</button>
+                                <button class="btn-secondary" id="cancel-personality-btn">Cancelar</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Pestaña: Voces -->
+                    <section class="settings-section tab-pane" id="tab-voices">
+                        <div class="section-header">
+                            <h3>🔊 Voces Disponibles</h3>
+                            <button class="btn-primary" id="create-voice-btn">➕ Crear</button>
+                        </div>
+
+                        <div class="tts-engine-status">
+                            <h4>Motor TTS Activo</h4>
+                            <div class="engine-info" id="tts-engine-info">
+                                <span class="engine-name">Cargando...</span>
+                                <span class="engine-status status-dot"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="profiles-grid" id="voices-list">
+                            <!-- Se llena dinámicamente -->
+                        </div>
+
+                        <div class="usb-actions">
+                            <button class="btn-secondary" id="scan-usb-voice-btn">📡 Escanear USB</button>
+                            <button class="btn-secondary" id="import-voice-btn">📥 Importar</button>
+                            <button class="btn-secondary" id="export-voice-btn">📤 Exportar</button>
+                        </div>
+
+                        <!-- Formulario de Creación -->
+                        <div class="form-panel" id="voice-form-panel" style="display: none;">
+                            <h4>Nueva Voz</h4>
+                            <div class="form-group">
+                                <label for="voice-name">Nombre:</label>
+                                <input type="text" id="voice-name" placeholder="Ej: María Español">
+                            </div>
+                            <div class="form-group">
+                                <label for="voice-language">Idioma:</label>
+                                <select id="voice-language">
+                                    <option value="es">Español</option>
+                                    <option value="en">English</option>
+                                    <option value="fr">Français</option>
+                                    <option value="de">Deutsch</option>
+                                    <option value="it">Italiano</option>
+                                    <option value="pt">Português</option>
+                                    <option value="ca">Català</option>
+                                    <option value="eu">Euskara</option>
+                                    <option value="gl">Galego</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="voice-file">Archivo de Voz (.onnx, .pt, .bin):</label>
+                                <input type="file" id="voice-file" accept=".onnx,.pt,.bin,.voicepack">
+                            </div>
+                            <div class="form-group">
+                                <label for="voice-sample">Muestra de Audio (opcional):</label>
+                                <input type="file" id="voice-sample" accept=".wav,.mp3,.ogg">
+                            </div>
+                            <div class="form-actions">
+                                <button class="btn-primary" id="save-voice-btn">💾 Guardar</button>
+                                <button class="btn-secondary" id="cancel-voice-btn">Cancelar</button>
+                            </div>
+                        </div>
+
+                        <!-- Panel de Prueba de Voz -->
+                        <div class="voice-test-panel" id="voice-test-panel" style="display: none;">
+                            <h4>Probar Voz</h4>
+                            <div class="form-group">
+                                <label for="voice-test-text">Texto de prueba:</label>
+                                <textarea id="voice-test-text" rows="2">Hola, soy tu asistente de IA. ¿En qué puedo ayudarte hoy?</textarea>
+                            </div>
+                            <div class="form-actions">
+                                <button class="btn-primary" id="play-voice-test-btn">▶️ Reproducir</button>
+                                <button class="btn-secondary" id="close-voice-test-btn">Cerrar</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Pestaña: Memoria -->
+                    <section class="settings-section tab-pane" id="tab-memory">
+                        <h3>💾 Memoria</h3>
+                        <div class="memory-actions">
+                            <button id="migrate-memory-btn" class="action-btn">
+                                📋 Migrar Memoria a Otro Modelo
+                            </button>
+                            <button id="export-memory-btn" class="action-btn">
+                                💾 Exportar Memoria
+                            </button>
+                            <button id="clear-memory-btn" class="action-btn danger">
+                                🗑️ Limpiar Memoria
+                            </button>
+                        </div>
+                        <div class="memory-stats" id="memory-stats">
+                            <!-- Estadísticas dinámicas -->
+                        </div>
+                    </section>
+
+                    <!-- Pestaña: Preferencias -->
+                    <section class="settings-section tab-pane" id="tab-preferences">
+                        <h3>🎛️ Preferencias</h3>
+                        <div class="preference-item">
+                            <label for="theme-select">Tema:</label>
+                            <select id="theme-select">
+                                <option value="auto">Automático</option>
+                                <option value="light">Claro</option>
+                                <option value="dark">Oscuro</option>
+                            </select>
+                        </div>
+                        <div class="preference-item">
+                            <label for="language-select">Idioma:</label>
+                            <select id="language-select">
+                                <option value="es">Español</option>
+                                <option value="en">English</option>
+                            </select>
+                        </div>
+                        <div class="preference-item">
+                            <label for="auto-tts-toggle">TTS Automático:</label>
+                            <input type="checkbox" id="auto-tts-toggle" checked>
+                        </div>
+                    </section>
+                </div>
             </div>
         </div>
     </div>

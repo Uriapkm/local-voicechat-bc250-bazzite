@@ -25,6 +25,7 @@ from memory_core import MemoryCore
 from tts_engine import TTSEngine
 from stt_engine import STTEngine
 from web_search import WebSearch
+from profile_manager import ProfileManager
 
 # Configurar logging
 logging.basicConfig(
@@ -88,6 +89,11 @@ ollama_manager = OllamaManager()
 tts_engine = TTSEngine()
 stt_engine = STTEngine()
 web_search = WebSearch()
+profile_manager = ProfileManager()
+
+# Variables de estado global
+current_personality = None
+current_voice = None
 
 # Memoria por modelo (se crea bajo demanda)
 memory_instances: Dict[str, MemoryCore] = {}
@@ -217,6 +223,17 @@ async def chat(request: ChatRequest):
             "content": f"Memoria relevante de conversaciones anteriores:\n{context_text}"
         })
     
+    # Añadir personalidad si está activa
+    if current_personality:
+        personality_config = profile_manager.apply_personality(current_personality)
+        if personality_config:
+            messages.insert(0, {
+                "role": "system",
+                "content": personality_config.get("system_prompt", "")
+            })
+            prefs["tone"] = personality_config.get("tone", prefs.get("tone"))
+            prefs["language"] = personality_config.get("language", prefs.get("language"))
+    
     # Añadir preferencias del usuario
     prefs = memory.preferences
     system_instruction = f"Eres un asistente útil. Idioma: {prefs.get('language', 'es')}. Tono: {prefs.get('tone', 'friendly')}."
@@ -308,6 +325,17 @@ async def websocket_chat(websocket: WebSocket, client_id: int):
                     "role": "system",
                     "content": f"Memoria relevante de conversaciones anteriores:\n{context_text}"
                 })
+            
+            # Añadir personalidad si está activa (WebSocket)
+            if current_personality:
+                personality_config = profile_manager.apply_personality(current_personality)
+                if personality_config:
+                    messages.insert(0, {
+                        "role": "system",
+                        "content": personality_config.get("system_prompt", "")
+                    })
+                    prefs["tone"] = personality_config.get("tone", prefs.get("tone"))
+                    prefs["language"] = personality_config.get("language", prefs.get("language"))
             
             # Añadir preferencias del usuario
             prefs = memory.preferences
@@ -452,8 +480,123 @@ async def system_status():
         "tts": tts_engine.is_available(),
         "stt": stt_engine.is_available(),
         "internet": web_search.is_available(),
-        "models_count": len(ollama_manager.get_installed_models()) if ollama_manager.check_ollama_installed() else 0
+        "models_count": len(ollama_manager.get_installed_models()) if ollama_manager.check_ollama_installed() else 0,
+        "tts_engines": tts_engine.get_engine_info(),
+        "current_personality": current_personality,
+        "current_voice": current_voice
     }
+
+# ============================================
+# API de Gestión de Perfiles (Voces y Personalidades)
+# ============================================
+
+@app.get("/api/profiles")
+async def list_profiles(profile_type: Optional[str] = None):
+    """Lista todos los perfiles disponibles"""
+    profiles = profile_manager.list_profiles(profile_type)
+    return {"profiles": profiles, "count": len(profiles)}
+
+@app.get("/api/profiles/{profile_id}")
+async def get_profile(profile_id: str, profile_type: str):
+    """Obtiene información detallada de un perfil"""
+    profile = profile_manager.get_profile(profile_id, profile_type)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Perfil no encontrado")
+    return profile
+
+@app.post("/api/profiles/import")
+async def import_profile(file_path: str):
+    """Importa un perfil desde un archivo .voicepack"""
+    try:
+        profile_data = profile_manager.import_profile(file_path)
+        return {
+            "success": True,
+            "message": f"Perfil '{profile_data.get('name')}' importado exitosamente",
+            "profile": profile_data
+        }
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error importando perfil: {e}")
+
+@app.post("/api/profiles/export")
+async def export_profile(profile_id: str, profile_type: str, output_path: str):
+    """Exporta un perfil a un archivo .voicepack"""
+    success = profile_manager.export_profile(profile_id, output_path, profile_type)
+    if success:
+        return {"success": True, "message": f"Perfil exportado a {output_path}"}
+    else:
+        raise HTTPException(status_code=500, detail="Error exportando perfil")
+
+@app.delete("/api/profiles/{profile_id}")
+async def delete_profile(profile_id: str, profile_type: str):
+    """Elimina un perfil"""
+    success = profile_manager.delete_profile(profile_id, profile_type)
+    if success:
+        return {"success": True, "message": "Perfil eliminado"}
+    else:
+        raise HTTPException(status_code=404, detail="Perfil no encontrado")
+
+@app.post("/api/profiles/personality/apply")
+async def apply_personality(profile_id: str):
+    """Aplica una personalidad al sistema"""
+    global current_personality
+    profile = profile_manager.get_profile(profile_id, "personality")
+    if not profile:
+        raise HTTPException(status_code=404, detail="Perfil no encontrado")
+    
+    current_personality = profile_id
+    return {
+        "success": True,
+        "message": f"Personalidad '{profile.get('name')}' aplicada",
+        "personality": profile
+    }
+
+@app.post("/api/profiles/personality/clear")
+async def clear_personality():
+    """Limpia la personalidad activa"""
+    global current_personality
+    current_personality = None
+    return {"success": True, "message": "Personalidad desactivada"}
+
+@app.post("/api/profiles/voice/apply")
+async def apply_voice(profile_id: str):
+    """Aplica una voz al sistema TTS"""
+    global current_voice
+    success = tts_engine.load_voice_profile(profile_id)
+    if success:
+        current_voice = profile_id
+        return {"success": True, "message": f"Voz aplicada"}
+    else:
+        raise HTTPException(status_code=404, detail="Perfil de voz no encontrado")
+
+@app.post("/api/profiles/voice/clear")
+async def clear_voice():
+    """Limpia la voz activa"""
+    global current_voice
+    current_voice = None
+    return {"success": True, "message": "Voz desactivada"}
+
+@app.get("/api/profiles/scan-usb")
+async def scan_usb(usb_path: str = "/media/usb"):
+    """Escanea un dispositivo USB en busca de perfiles"""
+    voicepacks = profile_manager.scan_usb_for_profiles(usb_path)
+    return {"usb_path": usb_path, "voicepacks_found": voicepacks, "count": len(voicepacks)}
+
+@app.post("/api/profiles/create/voice")
+async def create_voice_profile(name: str, description: str = "", voice_file: Optional[str] = None):
+    """Crea un nuevo perfil de voz"""
+    profile = profile_manager.create_voice_profile(name, description, voice_file)
+    return {"success": True, "profile": profile}
+
+@app.post("/api/profiles/create/personality")
+async def create_personality_profile(name: str, system_prompt: str, description: str = "", 
+                                     tone: str = "friendly", language: str = "es"):
+    """Crea un nuevo perfil de personalidad"""
+    profile = profile_manager.create_personality_profile(name, system_prompt, description, tone=tone, language=language)
+    return {"success": True, "profile": profile}
 
 @app.get("/api/memory/stats")
 async def get_memory_stats():

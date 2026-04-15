@@ -5,14 +5,16 @@ Servidor FastAPI que gestiona la API REST y WebSocket para el chatbot de IA
 import asyncio
 import json
 import logging
+import base64
 from typing import Dict, List, Optional
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from pathlib import Path
 
 from config import (
     HOST, PORT, DEFAULT_MODEL, OLLAMA_BASE_URL,
@@ -500,18 +502,114 @@ async def clear_memory(model: Optional[str] = None):
 
 
 @app.post("/api/audio/transcribe")
-async def transcribe_audio(audio_file: bytes):
-    """Endpoint para transcripción de audio (STT)"""
-    if not stt_engine.is_available():
-        raise HTTPException(status_code=503, detail="STT no disponible")
+async def transcribe_audio(audio_file: UploadFile = File(...), use_native: bool = True):
+    """
+    Endpoint para transcripción de audio usando Gemma4 nativo
     
-    # Transcribir audio desde bytes
-    transcription = stt_engine.transcribe_bytes(audio_file)
+    Args:
+        audio_file: Archivo de audio (WebM, WAV, etc)
+        use_native: Si True, usar Gemma4 directamente; Si False, usar Whisper.cpp
     
-    if transcription:
-        return {"success": True, "text": transcription}
-    else:
-        raise HTTPException(status_code=500, detail="Error transcribiendo audio")
+    Returns:
+        JSON con "success" y "text" de la transcripción
+    """
+    try:
+        # Leer archivo de audio
+        audio_bytes = await audio_file.read()
+        
+        # Codificar a base64 para Gemma4
+        audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+        
+        logger.info(f"Audio recibido: {len(audio_bytes)} bytes, formato nativo={use_native}")
+        
+        # Opción 1: Usar Gemma4 nativamente (RECOMENDADO para BC-250)
+        if use_native:
+            try:
+                # Obtener memoria del modelo por defecto
+                memory = get_memory_for_model(DEFAULT_MODEL)
+                
+                # Crear mensaje multimodal con audio para Gemma4
+                # El audio se incluye como parte del contexto
+                messages = [
+                    {
+                        "role": "user",
+                        "content": "Transcribe este audio al texto que contiene. Proporciona solo el texto transcrito sin explicaciones adicionales.",
+                        "audio": audio_base64  # Audio base64 para Gemma4
+                    }
+                ]
+                
+                logger.info("Enviando audio a Gemma4:E4B para transcripción nativa...")
+                
+                # Generar respuesta
+                response = ollama_manager.generate_response(
+                    model=DEFAULT_MODEL,
+                    prompt="Transcribe el audio",
+                    messages=messages,
+                    audio=audio_base64,  # Pasar audio al manager
+                    stream=False
+                )
+                
+                if response.status_code == 200:
+                    response_data = response.json()
+                    transcription = response_data.get("message", {}).get("content", "").strip()
+                    
+                    if transcription:
+                        logger.info(f"Transcripción exitosa con Gemma4: {transcription[:100]}...")
+                        return {
+                            "success": True,
+                            "text": transcription,
+                            "method": "gemma4_native",
+                            "audio_size": len(audio_bytes)
+                        }
+                    else:
+                        logger.warning("Gemma4 devolvió transcripción vacía, intentando Whisper.cpp...")
+                        # Fallback a Whisper
+                        raise Exception("Respuesta vacía de Gemma4")
+                else:
+                    logger.warning(f"Gemma4 error {response.status_code}, usando Whisper.cpp...")
+                    raise Exception(f"Gemma4 error: {response.status_code}")
+            
+            except Exception as e:
+                logger.warning(f"Error con Gemma4 nativo: {e}, intentando Whisper.cpp fallback...")
+                # Fallback a Whisper.cpp
+                if stt_engine.is_available():
+                    logger.info("Usando Whisper.cpp como fallback...")
+                    transcription = stt_engine.transcribe_bytes(audio_bytes)
+                    if transcription:
+                        return {
+                            "success": True,
+                            "text": transcription,
+                            "method": "whisper_fallback",
+                            "audio_size": len(audio_bytes)
+                        }
+                    else:
+                        raise HTTPException(status_code=500, detail="Error en Whisper.cpp fallback")
+                else:
+                    raise HTTPException(status_code=503, detail="Gemma4 error y Whisper.cpp no disponible")
+        
+        # Opción 2: Usar Whisper.cpp directamente (LEGACY)
+        else:
+            if not stt_engine.is_available():
+                raise HTTPException(status_code=503, detail="STT (Whisper.cpp) no disponible")
+            
+            logger.info("Usando Whisper.cpp para transcripción...")
+            transcription = stt_engine.transcribe_bytes(audio_bytes)
+            
+            if transcription:
+                return {
+                    "success": True,
+                    "text": transcription,
+                    "method": "whisper_direct",
+                    "audio_size": len(audio_bytes)
+                }
+            else:
+                raise HTTPException(status_code=500, detail="Error transcribiendo con Whisper.cpp")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error en endpoint de transcripción: {e}")
+        raise HTTPException(status_code=500, detail=f"Error procesando audio: {str(e)}")
 
 
 @app.post("/api/audio/synthesize")
@@ -529,6 +627,79 @@ async def synthesize_audio(text: str, voice: Optional[str] = None):
         raise HTTPException(status_code=500, detail="Error generando audio")
 
 
+@app.post("/api/audio/chat")
+async def chat_with_audio(
+    audio_file: UploadFile = File(...),
+    query: str = "",
+    model: Optional[str] = None
+):
+    """
+    Chat multimodal: envía audio + query opcional a Gemma4
+    
+    Ejemplo: "¿Qué dice este audio?" + audio WAV
+    Gemma4 procesa el audio y responde directamente
+    """
+    try:
+        # Leer archivo de audio
+        audio_bytes = await audio_file.read()
+        audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+        
+        # Usar modelo por defecto si no se especifica
+        model_name = model or DEFAULT_MODEL
+        
+        # Obtener memoria para este modelo
+        memory = get_memory_for_model(model_name)
+        
+        # Construir query
+        if not query:
+            query = "Analiza este audio y responde qué contiene"
+        
+        logger.info(f"Chat con audio recibido: {len(audio_bytes)} bytes, query='{query[:50]}...'")
+        
+        # Construir mensajes multimodales
+        messages = [
+            {
+                "role": "user",
+                "content": query,
+                "audio": audio_base64  # Audio base64 para Gemma4
+            }
+        ]
+        
+        # Generar respuesta con audio
+        response = ollama_manager.generate_response(
+            model=model_name,
+            prompt=query,
+            messages=messages,
+            audio=audio_base64,
+            stream=False
+        )
+        
+        if response.status_code == 200:
+            response_data = response.json()
+            assistant_message = response_data.get("message", {}).get("content", "")
+            
+            # Guardar interacción en memoria
+            memory.add_interaction(f"[AUDIO] {query}", assistant_message)
+            
+            return {
+                "success": True,
+                "response": assistant_message,
+                "model": model_name,
+                "method": "gemma4_audio_native",
+                "audio_size": len(audio_bytes),
+                "query": query
+            }
+        else:
+            logger.error(f"Error en chat con audio: {response.status_code}")
+            raise HTTPException(status_code=500, detail=f"Error procesando audio: {response.status_code}")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error en chat con audio: {e}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+
 @app.get("/api/system/status")
 async def system_status():
     """Obtener estado del sistema"""
@@ -541,6 +712,44 @@ async def system_status():
         "tts_engines": tts_engine.get_engine_info(),
         "current_personality": current_personality,
         "current_voice": current_voice
+    }
+
+@app.get("/api/audio/capabilities")
+async def audio_capabilities():
+    """
+    Obtener información sobre capacidades de audio del sistema
+    
+    Returns:
+        Información sobre soporte nativo de Gemma4, STT, TTS, etc.
+    """
+    return {
+        "gemma4_audio_native": {
+            "supported": True,
+            "description": "Gemma4:E4B procesa audio directamente sin necesidad de Whisper.cpp",
+            "formats": ["wav", "webm", "mp3", "ogg"],
+            "max_size_mb": 100,
+            "features": [
+                "Transcripción nativa",
+                "Análisis de audio",
+                "Extracción de información",
+                "Preguntas sobre contenido de audio"
+            ]
+        },
+        "stt_whisper": {
+            "available": stt_engine.is_available(),
+            "description": "Whisper.cpp - transcripción offline (fallback)",
+            "languages": ["es", "en", "fr", "de"]
+        },
+        "tts": {
+            "available": tts_engine.is_available(),
+            "current_engine": tts_engine.current_engine,
+            "description": "Síntesis de voz para respuestas"
+        },
+        "recommended_flow": {
+            "audio_input": "Gemma4:E4B (nativo)",
+            "audio_output": "Piper TTS o Web Speech API",
+            "stt_fallback": "Whisper.cpp (si Gemma4 falla)"
+        }
     }
 
 # ============================================

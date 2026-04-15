@@ -74,31 +74,61 @@ class OllamaManager:
             return False
     
     def generate_response(self, model: str, prompt: str, messages: list, 
-                         images: list = None, audio: bytes = None,
+                         images: list = None, audio: str = None,
                          stream: bool = True) -> requests.Response:
-        """Genera una respuesta del modelo"""
+        """
+        Genera una respuesta del modelo con soporte multimodal
+        
+        Args:
+            model: Nombre del modelo
+            prompt: Prompt de base (para compatibilidad)
+            messages: Lista de mensajes (incluir audio aquí si es multimodal)
+            images: (legacy) Lista de imágenes base64
+            audio: Audio base64 para pasar a Gemma4 nativo
+            stream: Si usar streaming
+        
+        Returns:
+            Response del API de Ollama
+        """
         payload = {
             "model": model,
             "messages": messages,
             "stream": stream
         }
         
+        # Si se proporciona audio y el modelo es Gemma4, intentar enviarlo
+        # Nota: Gemma4:E4B acepta audio en los mensajes directamente
+        if audio:
+            # Asegurarse de que los mensajes incluyan el audio
+            # (debe estar en el último mensaje del usuario)
+            if messages and messages[-1].get("role") == "user":
+                messages[-1]["audio"] = audio
+        
         if images:
             payload["images"] = images
         
-        # Nota: El audio se procesa antes de llegar aquí por el STT engine
-        # Gemma4 puede manejar audio nativamente pero requiere formato específico
-        
-        response = requests.post(
-            f"{self.base_url}/api/chat",
-            json=payload,
-            stream=stream
-        )
-        
-        return response
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/chat",
+                json=payload,
+                stream=stream,
+                timeout=300  # 5 minutos para procesamiento de audio
+            )
+            return response
+        except requests.Timeout:
+            raise Exception("Timeout esperando respuesta del modelo (audio muy largo?)")
+        except Exception as e:
+            raise Exception(f"Error llamando a Ollama: {e}")
     
     def get_model_info(self, model_name: str) -> Optional[Dict]:
-        """Obtiene información detallada de un modelo"""
+        """
+        Obtiene información detallada de un modelo
+        
+        Incluye soporte para modelos multimodales (Gemma4:E4B):
+        - Soporte de audio nativo
+        - Soporte de imágenes
+        - Ventana de contexto
+        """
         try:
             response = requests.post(
                 f"{self.base_url}/api/show",

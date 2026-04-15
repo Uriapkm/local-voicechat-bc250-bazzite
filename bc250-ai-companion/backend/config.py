@@ -3,6 +3,12 @@ Configuración centralizada para BC-250 AI Companion
 """
 import os
 from pathlib import Path
+from dotenv import load_dotenv  # Cargar desde .env
+
+# Cargar variables de entorno desde .env (si existe)
+env_file = Path(__file__).parent.parent / ".env"
+if env_file.exists():
+    load_dotenv(env_file)
 
 # Directorio base del proyecto
 BASE_DIR = Path(__file__).parent.parent
@@ -34,6 +40,10 @@ TTS_VOICE = os.getenv("TTS_VOICE", "es_ES-davefx-medium")  # Voz en español por
 WEB_SEARCH_ENABLED = os.getenv("WEB_SEARCH_ENABLED", "true").lower() == "true"
 WEB_SEARCH_ENGINE = os.getenv("WEB_SEARCH_ENGINE", "duckduckgo")
 
+# CORS - IMPORTANTE: Cambiar en producción
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "").split(",") if os.getenv("CORS_ORIGINS") else ["*"]
+# En producción, usar: CORS_ORIGINS = ["https://tudominio.com", "https://app.tudominio.com"]
+
 # Logs
 LOG_DIR = BASE_DIR / "data" / "logs"
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
@@ -53,7 +63,14 @@ def validate_config():
     if not LOG_DIR.exists():
         errors.append(f"Directorio de logs no existe: {LOG_DIR}")
     
+    # Advertencia sobre CORS en producción
+    if "*" in CORS_ORIGINS:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning("⚠️  CORS está permitido para todos los orígenes (*). Cambiar en producción.")
+    
     if errors:
         raise ValueError("Errores de configuración:\n" + "\n".join(errors))
     
     return True
+

@@ -22,7 +22,9 @@ except ImportError:
 class MemoryCore:
     def __init__(self, model_name: str = "default"):
         self.model_name = model_name
-        self.data_dir = Path("/workspace/bc250-ai-companion/data/vector_db")
+        # Usar rutas relativas - compatible con cualquier directorio
+        self.base_dir = Path(__file__).parent.parent
+        self.data_dir = self.base_dir / "data" / "vector_db"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         
         # Directorio específico por modelo

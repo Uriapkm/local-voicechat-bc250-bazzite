@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from config import (
     HOST, PORT, DEFAULT_MODEL, OLLAMA_BASE_URL,
-    VECTOR_DB_PATH, LOG_DIR, LOG_LEVEL, validate_config
+    VECTOR_DB_PATH, LOG_DIR, LOG_LEVEL, validate_config, CORS_ORIGINS
 )
 
 # Importar módulos del sistema
@@ -49,9 +49,10 @@ app = FastAPI(
 )
 
 # Configurar CORS para acceso desde navegador
+# IMPORTANTE: En producción, cambiar allow_origins a dominios específicos
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En producción, restringir a dominios específicos
+    allow_origins=CORS_ORIGINS,  # Controlado desde config.py
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -110,7 +111,11 @@ def get_memory_for_model(model_name: str) -> MemoryCore:
 @app.get("/")
 async def root():
     """Página principal - sirve el frontend"""
-    return FileResponse('../frontend/index.html')
+    frontend_path = Path(__file__).parent.parent / "frontend" / "index.html"
+    if frontend_path.exists():
+        return FileResponse(str(frontend_path))
+    else:
+        return {"message": "Frontend no encontrado en " + str(frontend_path)}
 
 @app.get("/health")
 async def health_check():
@@ -454,6 +459,46 @@ async def migrate_memory(request: MemoryMigrationRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/memory/export")
+async def export_memory(model: Optional[str] = None):
+    """Exportar memoria de un modelo"""
+    model_name = model or DEFAULT_MODEL
+    logger.info(f"Exportando memoria del modelo: {model_name}")
+    
+    try:
+        memory = get_memory_for_model(model_name)
+        export_data = memory.export_memory()
+        
+        return {
+            "success": True,
+            "message": f"Memoria del modelo {model_name} exportada",
+            "model": model_name,
+            "memory": export_data
+        }
+    except Exception as e:
+        logger.error(f"Error exportando memoria: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/memory/clear")
+async def clear_memory(model: Optional[str] = None):
+    """Limpiar memoria de un modelo"""
+    model_name = model or DEFAULT_MODEL
+    logger.info(f"Limpiando memoria del modelo: {model_name}")
+    
+    try:
+        memory = get_memory_for_model(model_name)
+        memory.clear_memory(keep_preferences=True)
+        
+        return {
+            "success": True,
+            "message": f"Memoria del modelo {model_name} limpiada (preferencias preservadas)"
+        }
+    except Exception as e:
+        logger.error(f"Error limpiando memoria: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/audio/transcribe")
 async def transcribe_audio(audio_file: bytes):
     """Endpoint para transcripción de audio (STT)"""
@@ -630,7 +675,11 @@ async def get_memory_stats():
 
 # Montar frontend estático
 try:
-    app.mount("/static", StaticFiles(directory="../frontend"), name="static")
+    frontend_dir = Path(__file__).parent.parent / "frontend"
+    if frontend_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(frontend_dir)), name="static")
+    else:
+        logger.warning(f"Directorio frontend no encontrado en {frontend_dir}")
 except Exception as e:
     logger.warning(f"No se pudo montar directorio estático: {e}")
 

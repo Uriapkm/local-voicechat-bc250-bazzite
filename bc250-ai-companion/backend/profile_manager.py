@@ -16,9 +16,11 @@ class ProfileManager:
     """Gestiona perfiles de voz y personalidad portables"""
     
     def __init__(self):
-        self.profiles_dir = Path("/workspace/bc250-ai-companion/data/profiles")
-        self.voices_dir = Path("/workspace/bc250-ai-companion/data/tts_models")
-        self.personalities_dir = Path("/workspace/bc250-ai-companion/data/personalities")
+        # Usar rutas relativas - compatible con cualquier directorio
+        self.base_dir = Path(__file__).parent.parent
+        self.profiles_dir = self.base_dir / "data" / "profiles"
+        self.voices_dir = self.base_dir / "data" / "tts_models"
+        self.personalities_dir = self.base_dir / "data" / "personalities"
         
         # Crear directorios
         self.profiles_dir.mkdir(parents=True, exist_ok=True)

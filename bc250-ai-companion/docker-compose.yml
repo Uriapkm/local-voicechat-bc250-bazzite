@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # BC-250 AI Companion - Servidor principal
+  bc250-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bc250-ai-companion
+    ports:
+      - "8080:8080"
+    environment:
+      BC250_HOST: "0.0.0.0"
+      BC250_PORT: "8080"
+      OLLAMA_BASE_URL: "http://host.docker.internal:11434"  # Para acceder a Ollama en host
+      DEFAULT_MODEL: "gemma4:e4b"
+      LOG_LEVEL: "INFO"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      # Persistencia de datos
+      - bc250_data:/app/data
+    networks:
+      - bc250-net
+    depends_on:
+      - ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Ollama - Motor de LLM (opcional, si quieres ejecutar localmente)
+  # Descomenta si quieres ejecutar Ollama en contenedor
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: ollama-server
+  #   ports:
+  #     - "11434:11434"
+  #   environment:
+  #     OLLAMA_HOST: "0.0.0.0:11434"
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   networks:
+  #     - bc250-net
+  #   restart: unless-stopped
+
+volumes:
+  bc250_data:
+    driver: local
+  # ollama_data:
+  #   driver: local
+
+networks:
+  bc250-net:
+    driver: bridge

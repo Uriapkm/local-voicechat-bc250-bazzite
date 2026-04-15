@@ -14,7 +14,9 @@ class STTEngine:
     def __init__(self):
         self.whisper_path = None
         self.model_path = None
-        self.data_dir = Path("/workspace/bc250-ai-companion/data/stt_models")
+        # Usar rutas relativas - compatible con cualquier directorio
+        self.base_dir = Path(__file__).parent.parent
+        self.data_dir = self.base_dir / "data" / "stt_models"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         
         # Detectar Whisper

@@ -20,8 +20,10 @@ class TTSEngine:
         self.xtts_available = False
         self.voice_model = None
         self.current_engine = "auto"  # auto, piper, melotts, xtts
-        self.data_dir = Path("/workspace/bc250-ai-companion/data/tts_models")
-        self.profiles_dir = Path("/workspace/bc250-ai-companion/data/profiles")
+        # Usar rutas relativas - compatible con cualquier directorio
+        self.base_dir = Path(__file__).parent.parent
+        self.data_dir = self.base_dir / "data" / "tts_models"
+        self.profiles_dir = self.base_dir / "data" / "profiles"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.profiles_dir.mkdir(parents=True, exist_ok=True)
         

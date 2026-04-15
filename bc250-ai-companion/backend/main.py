@@ -231,11 +231,15 @@ async def chat(request: ChatRequest):
                 "role": "system",
                 "content": personality_config.get("system_prompt", "")
             })
-            prefs["tone"] = personality_config.get("tone", prefs.get("tone"))
-            prefs["language"] = personality_config.get("language", prefs.get("language"))
     
     # Añadir preferencias del usuario
     prefs = memory.preferences
+    
+    # Aplicar personalidad a las preferencias si está activa
+    if current_personality and personality_config:
+        prefs["tone"] = personality_config.get("tone", prefs.get("tone"))
+        prefs["language"] = personality_config.get("language", prefs.get("language"))
+    
     system_instruction = f"Eres un asistente útil. Idioma: {prefs.get('language', 'es')}. Tono: {prefs.get('tone', 'friendly')}."
     if prefs.get("custom_instructions"):
         system_instruction += f" Preferencias: {prefs['custom_instructions'][-1]['text']}"
@@ -334,11 +338,15 @@ async def websocket_chat(websocket: WebSocket, client_id: int):
                         "role": "system",
                         "content": personality_config.get("system_prompt", "")
                     })
-                    prefs["tone"] = personality_config.get("tone", prefs.get("tone"))
-                    prefs["language"] = personality_config.get("language", prefs.get("language"))
             
             # Añadir preferencias del usuario
             prefs = memory.preferences
+            
+            # Aplicar personalidad a las preferencias si está activa
+            if current_personality and personality_config:
+                prefs["tone"] = personality_config.get("tone", prefs.get("tone"))
+                prefs["language"] = personality_config.get("language", prefs.get("language"))
+            
             system_instruction = f"Eres un asistente útil. Idioma: {prefs.get('language', 'es')}. Tono: {prefs.get('tone', 'friendly')}."
             if prefs.get("custom_instructions"):
                 system_instruction += f" Preferencias: {prefs['custom_instructions'][-1]['text']}"
@@ -388,7 +396,7 @@ async def websocket_chat(websocket: WebSocket, client_id: int):
                         "type": "complete",
                         "content": full_response,
                         "model": model,
-                        "conversation_id": AppState.conversation_id if hasattr(AppState, 'conversation_id') else "default",
+                        "conversation_id": "default",
                         "timestamp": datetime.now().isoformat()
                     })
                 else:
@@ -447,14 +455,18 @@ async def migrate_memory(request: MemoryMigrationRequest):
 
 
 @app.post("/api/audio/transcribe")
-async def transcribe_audio():
+async def transcribe_audio(audio_file: bytes):
     """Endpoint para transcripción de audio (STT)"""
-    # Este endpoint recibiría audio via multipart/form-data
-    # Implementación pendiente en frontend
     if not stt_engine.is_available():
         raise HTTPException(status_code=503, detail="STT no disponible")
     
-    return {"status": "ready", "message": "Envíe audio para transcribir"}
+    # Transcribir audio desde bytes
+    transcription = stt_engine.transcribe_bytes(audio_file)
+    
+    if transcription:
+        return {"success": True, "text": transcription}
+    else:
+        raise HTTPException(status_code=500, detail="Error transcribiendo audio")
 
 
 @app.post("/api/audio/synthesize")

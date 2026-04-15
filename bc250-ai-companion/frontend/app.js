@@ -17,6 +17,13 @@ const AppState = {
 
 let elements = {};
 
+// Función de utilidad para escapar HTML y prevenir XSS
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 function initElements() {
     elements = {
         chatMessages: document.getElementById('chat-messages'),
@@ -394,9 +401,35 @@ async function loadPersonalities() {
         const res = await fetch(`${API_BASE_URL}/api/profiles?profile_type=personality`);
         const data = await res.json();
         const list = document.getElementById('personalities-list');
-        if (list) list.innerHTML = '';
+        if (!list) return;
+        
+        list.innerHTML = '';
+        
+        if (!data.profiles || data.profiles.length === 0) {
+            list.innerHTML = '<p class="empty-list">No hay personalidades guardadas</p>';
+            return;
+        }
+        
+        data.profiles.forEach(profile => {
+            const div = document.createElement('div');
+            div.className = 'profile-item';
+            div.innerHTML = `
+                <div class="profile-header">
+                    <span class="profile-name">${escapeHtml(profile.name)}</span>
+                    <span class="profile-type-badge">Personalidad</span>
+                </div>
+                <p class="profile-description">${escapeHtml(profile.description || 'Sin descripción')}</p>
+                <div class="profile-actions">
+                    <button onclick="selectPersonality('${profile.id}')" class="btn-apply">Aplicar</button>
+                    <button onclick="exportPersonality('${profile.id}')" class="btn-export">Exportar</button>
+                    <button onclick="deletePersonality('${profile.id}')" class="btn-delete">Eliminar</button>
+                </div>
+            `;
+            list.appendChild(div);
+        });
     } catch (e) {
-        showToast('Error loading personalities', 'error');
+        console.error('Error loading personalities:', e);
+        showToast('Error cargando personalidades', 'error');
     }
 }
 
@@ -411,32 +444,219 @@ function hideCreatePersonalityForm() {
 }
 
 async function savePersonality() {
-    showToast('Personality saved', 'success');
-    hideCreatePersonalityForm();
+    const nameInput = document.getElementById('personality-name');
+    const descInput = document.getElementById('personality-description');
+    const promptInput = document.getElementById('personality-prompt');
+    const toneSelect = document.getElementById('personality-tone');
+    const langSelect = document.getElementById('personality-language');
+    
+    const name = nameInput ? nameInput.value.trim() : '';
+    const description = descInput ? descInput.value.trim() : '';
+    const system_prompt = promptInput ? promptInput.value.trim() : '';
+    const tone = toneSelect ? toneSelect.value : 'friendly';
+    const language = langSelect ? langSelect.value : 'es';
+    
+    if (!name) {
+        showToast('El nombre es obligatorio', 'error');
+        return;
+    }
+    
+    if (!system_prompt) {
+        showToast('El system prompt es obligatorio', 'error');
+        return;
+    }
+    
+    try {
+        const params = new URLSearchParams();
+        params.append('name', name);
+        params.append('description', description);
+        params.append('system_prompt', system_prompt);
+        params.append('tone', tone);
+        params.append('language', language);
+        
+        const res = await fetch(`${API_BASE_URL}/api/profiles/create/personality?${params.toString()}`, {
+            method: 'POST'
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            showToast('Personalidad creada exitosamente', 'success');
+            hideCreatePersonalityForm();
+            loadPersonalities();
+            
+            // Limpiar formulario
+            if (nameInput) nameInput.value = '';
+            if (descInput) descInput.value = '';
+            if (promptInput) promptInput.value = '';
+        } else {
+            showToast('Error al crear personalidad', 'error');
+        }
+    } catch (e) {
+        console.error('Error saving personality:', e);
+        showToast('Error al guardar personalidad', 'error');
+    }
 }
 
 async function selectPersonality(id) {
-    showToast('Personality selected', 'success');
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/profiles/personality/apply?profile_id=${encodeURIComponent(id)}`, {
+            method: 'POST'
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            showToast(`Personalidad "${data.personality?.name || id}" aplicada`, 'success');
+            loadPersonalities();
+        } else {
+            showToast('Error al aplicar personalidad', 'error');
+        }
+    } catch (e) {
+        console.error('Error selecting personality:', e);
+        showToast('Error al seleccionar personalidad', 'error');
+    }
 }
 
 async function deletePersonality(id) {
-    if (confirm('Delete?')) showToast('Personality deleted', 'success');
+    if (!confirm('¿Estás seguro de que quieres eliminar esta personalidad?')) {
+        return;
+    }
+    
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/profiles/${encodeURIComponent(id)}?profile_type=personality`, {
+            method: 'DELETE'
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            showToast('Personalidad eliminada', 'success');
+            loadPersonalities();
+        } else {
+            showToast('Error al eliminar personalidad', 'error');
+        }
+    } catch (e) {
+        console.error('Error deleting personality:', e);
+        showToast('Error al eliminar personalidad', 'error');
+    }
+}
+
+async function exportPersonality(id) {
+    const outputPath = prompt('Ruta de salida para el archivo .voicepack:', `/tmp/${id}_personality.voicepack`);
+    
+    if (!outputPath) return;
+    
+    try {
+        const params = new URLSearchParams();
+        params.append('profile_id', id);
+        params.append('profile_type', 'personality');
+        params.append('output_path', outputPath);
+        
+        const res = await fetch(`${API_BASE_URL}/api/profiles/export?${params.toString()}`, {
+            method: 'POST'
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            showToast(`Personalidad exportada a ${outputPath}`, 'success');
+        } else {
+            showToast('Error al exportar personalidad', 'error');
+        }
+    } catch (e) {
+        console.error('Error exporting personality:', e);
+        showToast('Error al exportar personalidad', 'error');
+    }
 }
 
 async function importPersonality() {
-    showToast('Import successful', 'success');
-}
-
-async function exportPersonality() {
-    showToast('Export successful', 'success');
+    const filePath = prompt('Ruta del archivo .voicepack a importar:');
+    
+    if (!filePath) return;
+    
+    try {
+        const params = new URLSearchParams();
+        params.append('file_path', filePath);
+        
+        const res = await fetch(`${API_BASE_URL}/api/profiles/import?${params.toString()}`, {
+            method: 'POST'
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            showToast(`Personalidad "${data.profile?.name}" importada exitosamente`, 'success');
+            loadPersonalities();
+        } else {
+            showToast('Error al importar personalidad', 'error');
+        }
+    } catch (e) {
+        console.error('Error importing personality:', e);
+        showToast('Error al importar personalidad', 'error');
+    }
 }
 
 async function loadVoices() {
     try {
         const res = await fetch(`${API_BASE_URL}/api/profiles?profile_type=voice`);
         const data = await res.json();
+        const list = document.getElementById('voices-list');
+        if (!list) return;
+        
+        list.innerHTML = '';
+        
+        if (!data.profiles || data.profiles.length === 0) {
+            list.innerHTML = '<p class="empty-list">No hay voces guardadas</p>';
+            return;
+        }
+        
+        data.profiles.forEach(profile => {
+            const div = document.createElement('div');
+            div.className = 'profile-item';
+            div.innerHTML = `
+                <div class="profile-header">
+                    <span class="profile-name">${escapeHtml(profile.name)}</span>
+                    <span class="profile-type-badge">Voz TTS</span>
+                </div>
+                <p class="profile-description">${escapeHtml(profile.description || 'Sin descripción')}</p>
+                <div class="profile-actions">
+                    <button onclick="selectVoice('${profile.id}')" class="btn-apply">Aplicar</button>
+                    <button onclick="testVoice('${profile.id}')" class="btn-test">Probar</button>
+                    <button onclick="exportVoice('${profile.id}')" class="btn-export">Exportar</button>
+                    <button onclick="deleteVoice('${profile.id}')" class="btn-delete">Eliminar</button>
+                </div>
+            `;
+            list.appendChild(div);
+        });
+        
+        // Cargar información del motor TTS
+        loadTTSEngineInfo();
     } catch (e) {
-        showToast('Error loading voices', 'error');
+        console.error('Error loading voices:', e);
+        showToast('Error cargando voces', 'error');
+    }
+}
+
+async function loadTTSEngineInfo() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/system/status`);
+        const data = await res.json();
+        const infoPanel = document.getElementById('tts-engine-info');
+        
+        if (infoPanel) {
+            infoPanel.innerHTML = `
+                <div class="engine-status">
+                    <strong>Estado TTS:</strong> 
+                    <span class="status-${data.tts ? 'active' : 'inactive'}">
+                        ${data.tts ? 'Disponible' : 'No disponible'}
+                    </span>
+                </div>
+                ${data.tts_engines ? `<div class="engine-details">${JSON.stringify(data.tts_engines)}</div>` : ''}
+            `;
+        }
+    } catch (e) {
+        console.error('Error loading TTS engine info:', e);
     }
 }
 
@@ -451,27 +671,188 @@ function hideCreateVoiceForm() {
 }
 
 async function saveVoice() {
-    showToast('Voice saved', 'success');
+    const nameInput = document.getElementById('voice-name');
+    const descInput = document.getElementById('voice-description');
+    const voiceFileInput = document.getElementById('voice-file');
+    
+    const name = nameInput ? nameInput.value.trim() : '';
+    const description = descInput ? descInput.value.trim() : '';
+    const voice_file = voiceFileInput ? voiceFileInput.value.trim() : '';
+    
+    if (!name) {
+        showToast('El nombre es obligatorio', 'error');
+        return;
+    }
+    
+    try {
+        const params = new URLSearchParams();
+        params.append('name', name);
+        params.append('description', description);
+        if (voice_file) {
+            params.append('voice_file', voice_file);
+        }
+        
+        const res = await fetch(`${API_BASE_URL}/api/profiles/create/voice?${params.toString()}`, {
+            method: 'POST'
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            showToast('Voz creada exitosamente', 'success');
+            hideCreateVoiceForm();
+            loadVoices();
+            
+            // Limpiar formulario
+            if (nameInput) nameInput.value = '';
+            if (descInput) descInput.value = '';
+            if (voiceFileInput) voiceFileInput.value = '';
+        } else {
+            showToast('Error al crear voz', 'error');
+        }
+    } catch (e) {
+        console.error('Error saving voice:', e);
+        showToast('Error al guardar voz', 'error');
+    }
 }
 
 async function selectVoice(id) {
-    showToast('Voice selected', 'success');
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/profiles/voice/apply?profile_id=${encodeURIComponent(id)}`, {
+            method: 'POST'
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            showToast('Voz aplicada al sistema TTS', 'success');
+            loadVoices();
+        } else {
+            showToast('Error al aplicar voz', 'error');
+        }
+    } catch (e) {
+        console.error('Error selecting voice:', e);
+        showToast('Error al seleccionar voz', 'error');
+    }
 }
 
 async function deleteVoice(id) {
-    if (confirm('Delete?')) showToast('Voice deleted', 'success');
+    if (!confirm('¿Estás seguro de que quieres eliminar esta voz?')) {
+        return;
+    }
+    
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/profiles/${encodeURIComponent(id)}?profile_type=voice`, {
+            method: 'DELETE'
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            showToast('Voz eliminada', 'success');
+            loadVoices();
+        } else {
+            showToast('Error al eliminar voz', 'error');
+        }
+    } catch (e) {
+        console.error('Error deleting voice:', e);
+        showToast('Error al eliminar voz', 'error');
+    }
+}
+
+async function exportVoice(id) {
+    const outputPath = prompt('Ruta de salida para el archivo .voicepack:', `/tmp/${id}_voice.voicepack`);
+    
+    if (!outputPath) return;
+    
+    try {
+        const params = new URLSearchParams();
+        params.append('profile_id', id);
+        params.append('profile_type', 'voice');
+        params.append('output_path', outputPath);
+        
+        const res = await fetch(`${API_BASE_URL}/api/profiles/export?${params.toString()}`, {
+            method: 'POST'
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            showToast(`Voz exportada a ${outputPath}`, 'success');
+        } else {
+            showToast('Error al exportar voz', 'error');
+        }
+    } catch (e) {
+        console.error('Error exporting voice:', e);
+        showToast('Error al exportar voz', 'error');
+    }
 }
 
 async function importVoice() {
-    showToast('Voice imported', 'success');
+    const filePath = prompt('Ruta del archivo .voicepack a importar:');
+    
+    if (!filePath) return;
+    
+    try {
+        const params = new URLSearchParams();
+        params.append('file_path', filePath);
+        
+        const res = await fetch(`${API_BASE_URL}/api/profiles/import?${params.toString()}`, {
+            method: 'POST'
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            showToast(`Voz "${data.profile?.name}" importada exitosamente`, 'success');
+            loadVoices();
+        } else {
+            showToast('Error al importar voz', 'error');
+        }
+    } catch (e) {
+        console.error('Error importing voice:', e);
+        showToast('Error al importar voz', 'error');
+    }
 }
 
-async function exportVoice() {
-    showToast('Voice exported', 'success');
-}
-
-async function testVoice() {
-    showToast('Playing test...', 'info');
+async function testVoice(id) {
+    const textToTest = prompt('Texto para probar la voz:', 'Hola, esta es una prueba de síntesis de voz.');
+    
+    if (!textToTest) return;
+    
+    try {
+        const params = new URLSearchParams();
+        params.append('text', textToTest);
+        if (id) {
+            params.append('voice', id);
+        }
+        
+        // Primero sintetizar el audio
+        const res = await fetch(`${API_BASE_URL}/api/audio/synthesize?${params.toString()}`, {
+            method: 'POST'
+        });
+        
+        if (!res.ok) {
+            throw new Error('Error en síntesis de audio');
+        }
+        
+        // Obtener el blob de audio
+        const audioBlob = await res.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        
+        // Reproducir el audio
+        const audio = new Audio(audioUrl);
+        audio.play();
+        
+        showToast('Reproduciendo prueba de voz...', 'info');
+        
+        audio.onended = () => {
+            URL.revokeObjectURL(audioUrl);
+        };
+    } catch (e) {
+        console.error('Error testing voice:', e);
+        showToast('Error al probar la voz', 'error');
+    }
 }
 
 function closeVoiceTest() {
@@ -480,15 +861,111 @@ function closeVoiceTest() {
 }
 
 async function scanUSBForProfiles(type) {
-    showToast('Scanning USB...', 'info');
+    const usbPath = prompt('Ruta del dispositivo USB a escanear:', '/media/usb');
+    
+    if (!usbPath) return;
+    
+    try {
+        const params = new URLSearchParams();
+        params.append('usb_path', usbPath);
+        
+        const res = await fetch(`${API_BASE_URL}/api/profiles/scan-usb?${params.toString()}`);
+        const data = await res.json();
+        
+        if (data.voicepacks_found && data.voicepacks_found.length > 0) {
+            let message = `Se encontraron ${data.count} archivo(s) .voicepack en ${usbPath}:\n\n`;
+            data.voicepacks_found.forEach((file, i) => {
+                message += `${i + 1}. ${file}\n`;
+            });
+            alert(message);
+            showToast(`USB escaneado: ${data.count} voicepack(s) encontrado(s)`, 'success');
+        } else {
+            showToast(`No se encontraron archivos .voicepack en ${usbPath}`, 'info');
+        }
+    } catch (e) {
+        console.error('Error scanning USB:', e);
+        showToast('Error al escanear USB', 'error');
+    }
 }
 
 async function migrateMemory() {
-    showToast('Memory migrated', 'success');
+    const sourceModel = prompt('Modelo de origen (ej: gemma4:e4b):', AppState.currentModel);
+    
+    if (!sourceModel) return;
+    
+    const targetModel = prompt('Modelo de destino (ej: llama3.2):', '');
+    
+    if (!targetModel) {
+        showToast('Modelo de destino es requerido', 'error');
+        return;
+    }
+    
+    if (sourceModel === targetModel) {
+        showToast('Los modelos de origen y destino deben ser diferentes', 'error');
+        return;
+    }
+    
+    if (!confirm(`¿Migrar memoria de "${sourceModel}" a "${targetModel}"?`)) {
+        return;
+    }
+    
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/memory/migrate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                source_model: sourceModel,
+                target_model: targetModel
+            })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            showToast(`Memoria migrada de ${sourceModel} a ${targetModel}`, 'success');
+        } else {
+            showToast('Error al migrar memoria', 'error');
+        }
+    } catch (e) {
+        console.error('Error migrating memory:', e);
+        showToast('Error al migrar memoria', 'error');
+    }
 }
 
 async function exportMemory() {
-    showToast('Memory exported', 'success');
+    const model = prompt('Modelo del cual exportar memoria (dejar vacío para el actual):', AppState.currentModel);
+    
+    try {
+        const params = new URLSearchParams();
+        if (model) {
+            params.append('model', model.trim());
+        }
+        
+        const res = await fetch(`${API_BASE_URL}/api/memory/export?${params.toString()}`);
+        const data = await res.json();
+        
+        if (data.success && data.memory) {
+            // Crear blob JSON y descargar
+            const jsonString = JSON.stringify(data.memory, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `memory_${(model || AppState.currentModel).replace(/[:\/]/g, '_')}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showToast(`Memoria exportada exitosamente`, 'success');
+        } else {
+            showToast('Error al exportar memoria', 'error');
+        }
+    } catch (e) {
+        console.error('Error exporting memory:', e);
+        showToast('Error al exportar memoria', 'error');
+    }
 }
 
 async function clearMemory() {

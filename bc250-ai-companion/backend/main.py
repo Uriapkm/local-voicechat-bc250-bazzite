@@ -876,6 +876,7 @@ async def create_personality_profile(name: str, system_prompt: str, description:
 @app.get("/api/memory/stats")
 async def get_memory_stats():
     """Obtener estadísticas de la memoria"""
+    # Forzar recarga desde disco para obtener datos actualizados
     stats = {
         "total_models": len(memory_instances),
         "models": {}
@@ -885,10 +886,12 @@ async def get_memory_stats():
         mem_summary = memory.get_memory_summary()
         stats["models"][model_name] = {
             "interactions": mem_summary["metadata"]["total_interactions"],
-            "preferences": mem_summary["preferences"],
-            "created_at": mem_summary["metadata"]["created_at"]
+            "preferences_count": len(mem_summary["preferences"].get("custom_instructions", [])),
+            "created_at": mem_summary["metadata"]["created_at"],
+            "last_updated": mem_summary["metadata"]["last_updated"]
         }
     
+    logger.info(f"Estadísticas de memoria: {len(stats['models'])} modelos activos")
     return stats
 
 # Montar frontend estático
@@ -908,10 +911,12 @@ if __name__ == "__main__":
     logger.info(f"Iniciando servidor en {HOST}:{PORT}")
     logger.info(f"Documentación disponible en http://{HOST}:{PORT}/docs")
     
+    # NOTA: reload=True solo para desarrollo. En producción usar reload=False
+    # para evitar pérdida de estado de memoria por reinicios automáticos
     uvicorn.run(
         "main:app",
         host=HOST,
         port=PORT,
-        reload=True,  # Solo en desarrollo
+        reload=False,  # Desactivado para preservar estado de memoria
         log_level=LOG_LEVEL.lower()
     )

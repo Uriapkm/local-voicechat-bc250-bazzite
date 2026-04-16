@@ -2,7 +2,7 @@
 
 Sistema de instalación y ejecución simplificado para aplicaciones AI en Bazzite OS usando Distrobox. Todo se ejecuta en un entorno aislado dentro de un contenedor, ideal para sistemas inmutables como Bazzite.
 
-## 📁 Archivos del sistema
+## 📁 Archivos principales
 
 | Archivo | Descripción |
 |---------|-------------|
@@ -47,6 +47,7 @@ Este script:
 - ✅ Crea el contenedor Distrobox
 - ✅ Instala Python y pip dentro del contenedor
 - ✅ Crea el entorno virtual
+- ✅ Instala las dependencias de `requirements.txt` si existe
 - ✅ Instala Ollama (si está habilitado)
 - ✅ Descarga los modelos especificados
 - ✅ Genera `start.sh` automáticamente
@@ -142,8 +143,10 @@ distrobox rm -f mi-ai-box
 En Bazzite, asegúrate de tener distrobox instalado:
 
 ```bash
-# Actualizar sistema
-distrobox upgrade --force
+# Usando flatpak (recomendado en Bazzite)
+flatpak install flathub com.docker.docker
+
+# O usa el gestor de paquetes de tu distro
 ```
 
 ### Error: "No se pudo descargar el modelo"
@@ -175,16 +178,17 @@ distrobox enter mi-ai-box -- bash -c "tail -n 50 /var/log/*"
 ## 📝 Notas importantes
 
 1. **Bazzite es inmutable**: Todo se instala en el contenedor, no en el host
-2. **Persistencia**: Tus datos en la carpeta del proyecto se mantienen
-3. **Aislamiento**: El entorno virtual está completamente aislado del host
-4. **Recursos**: Asegúrate de tener espacio suficiente para los modelos de IA
+2. **No necesitas Python en el host**: Todo se instala dentro del contenedor
+3. **Persistencia**: Tus datos en la carpeta del proyecto se mantienen
+4. **Aislamiento**: El entorno virtual está completamente aislado del host
+5. **Recursos**: Asegúrate de tener espacio suficiente para los modelos de IA
 
 ## 🎯 Flujo de trabajo recomendado
 
 1. Configurar `config.ini` según tu proyecto
-2. Ejecutar `./install.sh` (una sola vez)
-3. Añadir dependencias a `requirements.txt`
-4. Ejecutar `./install-libs.sh` para instalarlas
+2. (Opcional) Editar `requirements.txt` con tus dependencias
+3. Ejecutar `./install.sh` (una sola vez)
+4. Si añadiste nuevas dependencias después de la instalación, ejecuta `./install-libs.sh`
 5. Desarrollar tu aplicación en la carpeta del proyecto
 6. Usar `./start.sh` cada vez que quieras ejecutar la app
 

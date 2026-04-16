@@ -3,6 +3,7 @@
 # INSTALADOR DE LIBRERÍAS PYTHON
 # ==========================================
 # Instala las librerías de requirements.txt en el venv del contenedor
+# Uso: ./install-libs.sh
 # ==========================================
 
 CONFIG_FILE="${CONFIG_FILE:-config.ini}"
@@ -32,6 +33,7 @@ get_config() {
 
 CONTAINER_NAME=$(get_config "CONTAINER" "name" "ai-assistant-box")
 VENV_PATH=$(get_config "PYTHON" "venv_path" "/home/user/ai-project/venv")
+MOUNT_PATH=$(get_config "CONTAINER" "mount_path" "/home/user/ai-project")
 
 # Verificar requirements.txt
 if [ ! -f "requirements.txt" ]; then
@@ -50,7 +52,8 @@ fi
 log_info "Instalando librerías en el contenedor '$CONTAINER_NAME'..."
 
 # Instalar desde requirements.txt
-distrobox enter "$CONTAINER_NAME" -- bash -c "source $VENV_PATH/bin/activate && pip install -r /home/user/ai-project/requirements.txt"
+REQUIREMENTS_FILE="${MOUNT_PATH}/requirements.txt"
+distrobox enter "$CONTAINER_NAME" -- bash -c "source $VENV_PATH/bin/activate && pip install -r $REQUIREMENTS_FILE"
 
 if [ $? -eq 0 ]; then
     log_success "Librerías instaladas correctamente"

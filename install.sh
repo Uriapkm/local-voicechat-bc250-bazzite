@@ -2,7 +2,7 @@
 # ==========================================
 # INSTALADOR DEL SISTEMA AI (BAZZITE/DISTROBOX)
 # ==========================================
-# Este script NO requiere Python instalado.
+# Este script NO requiere Python instalado en el host.
 # Todo se instala dentro del contenedor Distrobox.
 # ==========================================
 
@@ -102,9 +102,9 @@ log_info "Verificando dependencias del sistema..."
 
 if ! command -v distrobox &> /dev/null; then
     log_error "distrobox no está instalado"
-    log_info "En Bazzite, instálalo con:"
-    log_info "  distrobox upgrade --force  # Si es necesario"
-    log_info "O verifica que flatpak com.docker.docker esté disponible"
+    log_info "En Bazzite, asegúrate de tener distrobox disponible:"
+    log_info "  flatpak install flathub com.docker.docker  # Si usas Docker Desktop"
+    log_info "  O usa el gestor de paquetes de tu distro"
     exit 1
 fi
 log_success "distrobox encontrado"
@@ -210,6 +210,18 @@ run_in_container bash -c "source $VENV_PATH/bin/activate && pip install --upgrad
     log_warn "No se pudo actualizar pip, continuando..."
 }
 
+# Instalar requirements.txt si existe
+REQUIREMENTS_FILE="${MOUNT_PATH}/requirements.txt"
+if [ -f "requirements.txt" ]; then
+    log_info "Instalando dependencias desde requirements.txt..."
+    run_in_container bash -c "source $VENV_PATH/bin/activate && pip install -r $REQUIREMENTS_FILE" || {
+        log_warn "No se pudieron instalar todas las dependencias"
+    }
+    log_success "Dependencias de Python instaladas"
+else
+    log_info "No se encontró requirements.txt, saltando instalación de paquetes Python"
+fi
+
 # Instalar Ollama si está habilitado
 if [ "$INSTALL_OLLAMA" = "true" ]; then
     log_info "Instalando Ollama en el contenedor..."
@@ -309,19 +321,6 @@ STARTSCRIPT
 chmod +x start.sh
 log_success "Script start.sh generado"
 
-# Crear requirements.txt de ejemplo si no existe
-if [ ! -f "requirements.txt" ]; then
-    cat > requirements.txt << 'REQEOF'
-# Librerías Python para tu proyecto AI
-# Edita este archivo según necesites
-# requests
-# openai
-# langchain
-# etc.
-REQEOF
-    log_info "Archivo requirements.txt de ejemplo creado"
-fi
-
 echo ""
 echo "=========================================="
 log_success "¡INSTALACIÓN COMPLETADA!"
@@ -329,8 +328,8 @@ echo "=========================================="
 echo ""
 echo "Próximos pasos:"
 echo "  1. (Opcional) Edita requirements.txt y añade tus librerías"
-echo "  2. Instala librerías ejecutando:"
-echo "     ./install-libs.sh  (si lo creas) o manualmente en el contenedor"
+echo "  2. Para instalar nuevas librerías, ejecuta:"
+echo "     ./install-libs.sh"
 echo "  3. Para iniciar tu aplicación:"
 echo "     ./start.sh"
 echo ""

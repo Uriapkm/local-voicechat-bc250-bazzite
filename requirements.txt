@@ -1,14 +1,34 @@
-# Librerías Python para tu proyecto AI
-# Edita este archivo con las dependencias que necesites
-# Luego ejecuta: ./install-libs.sh
+# BC-250 AI Companion - Dependencias Python
+# Generadas analizando: backend/main.py, config.py, memory_core.py, 
+# tts_engine.py, stt_engine.py, web_search.py, profile_manager.py
 
-# Ejemplos (descomenta las que necesites):
-# requests>=2.31.0
-# openai>=1.0.0
-# langchain>=0.1.0
-# streamlit>=1.28.0
-# fastapi>=0.104.0
-# uvicorn>=0.24.0
-# pydantic>=2.0.0
-# numpy>=1.24.0
-# pandas>=2.0.0
+# === CORE SERVER ===
+fastapi>=0.104.0           # Framework web asincrónico
+uvicorn>=0.24.0            # Servidor ASGI para FastAPI
+pydantic>=2.0.0            # Validación de datos con tipos
+
+# === CONFIGURATION ===
+python-dotenv>=1.0.0       # Cargar variables de entorno desde .env
+
+# === API & NETWORKING ===
+requests>=2.31.0           # Cliente HTTP (Ollama, búsqueda web)
+httpx>=0.25.0              # Cliente HTTP asincrónico alternativo
+
+# === DATABASE & MEMORY ===
+chromadb>=0.4.0            # Base de datos vectorial para memoria persistente
+
+# === WEB SEARCH ===
+beautifulsoup4>=4.12.0     # Parsing HTML para búsqueda web (DuckDuckGo)
+lxml>=4.9.0                # Parser XML/HTML optimizado
+
+# === TEXT-TO-SPEECH (TTS) ===
+melo-tts>=0.1.0            # Motor MeloTTS para síntesis de voz
+
+# === AUDIO PROCESSING (Opcional) ===
+# numpy>=1.24.0             # Procesamiento numérico
+# scipy>=1.11.0             # Procesamiento de señales de audio
+# librosa>=0.10.0           # Análisis de audio
+# soundfile>=0.12.0         # Lectura/escritura de archivos WAV
+
+# === DEVELOPMENT & DEBUGGING ===
+# python-multipart>=0.0.6   # Soporte para multipart/form-data en FastAPI (ya incluido)

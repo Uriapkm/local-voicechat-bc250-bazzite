@@ -14,7 +14,37 @@ Sistema de instalación y ejecución simplificado para aplicaciones AI en Bazzit
 
 ## 🚀 Instalación rápida
 
-### 1. Editar configuración
+### Método recomendado: Script único (automático)
+
+**Para primera vez o reinstalación:**
+
+```bash
+./run.sh
+```
+
+Este script:
+- ✅ Detecta y verifica dependencias automáticamente
+- ✅ Crea el contenedor Distrobox optimizado para BC250/handhelds
+- ✅ Instala Python, Ollama y dependencias
+- ✅ Descarga el modelo base recomendado (`fredrezones55/Gemma-4-Uncensored-HauhauCS-Aggressive:e4b`)
+- ✅ Genera configuración óptima según tu hardware
+- ✅ Inicia la aplicación automáticamente
+
+**Opciones útiles:**
+
+```bash
+./run.sh --help              # Ver todas las opciones
+./run.sh -i                  # Modo interactivo para elegir modelo
+./run.sh --model llama3.2    # Usar un modelo específico
+./run.sh --reinstall         # Reinstalar desde cero
+./run.sh --no-ollama         # Sin Ollama (solo app)
+```
+
+### Método tradicional: Configuración manual
+
+Si prefieres control total sobre la configuración:
+
+#### 1. Editar configuración
 
 Abre `config.ini` y ajusta los valores:
 
@@ -36,7 +66,7 @@ start_command = python main.py      # Comando para iniciar tu app
 ports = 8501:8501                   # Puertos (si es web)
 ```
 
-### 2. Ejecutar instalación (solo una vez)
+#### 2. Ejecutar instalación (solo una vez)
 
 ```bash
 ./install.sh
@@ -52,7 +82,7 @@ Este script:
 - ✅ Descarga los modelos especificados
 - ✅ Genera `start.sh` automáticamente
 
-### 3. Instalar librerías Python (opcional)
+#### 3. Instalar librerías Python (opcional)
 
 Edita `requirements.txt` con tus dependencias:
 
@@ -69,7 +99,7 @@ Luego instala:
 ./install-libs.sh
 ```
 
-### 4. Iniciar la aplicación
+#### 4. Iniciar la aplicación
 
 Cada vez que quieras usar tu sistema:
 
@@ -77,7 +107,23 @@ Cada vez que quieras usar tu sistema:
 ./start.sh
 ```
 
+O usa el script unificado:
+
+```bash
+./run.sh
+```
+
 ## 📋 Comandos útiles
+
+### Script unificado (recomendado)
+
+```bash
+./run.sh                    # Instalación + inicio automático
+./run.sh -i                 # Modo interactivo para elegir modelo
+./run.sh --model llama3.2   # Usar modelo específico
+./run.sh --reinstall        # Reinstalar desde cero
+./run.sh --help             # Ver todas las opciones
+```
 
 ### Entrar manualmente al contenedor
 
@@ -182,15 +228,24 @@ distrobox enter mi-ai-box -- bash -c "tail -n 50 /var/log/*"
 3. **Persistencia**: Tus datos en la carpeta del proyecto se mantienen
 4. **Aislamiento**: El entorno virtual está completamente aislado del host
 5. **Recursos**: Asegúrate de tener espacio suficiente para los modelos de IA
+6. **BC250/Handhelds**: El modelo base está optimizado para estos dispositivos
 
 ## 🎯 Flujo de trabajo recomendado
+
+### Para la mayoría de usuarios (recomendado):
+
+1. Ejecutar `./run.sh` (instalación + inicio automático)
+2. Usar `./run.sh` cada vez que quieras iniciar la aplicación
+3. Cambiar modelo con `./run.sh --model nombre-modelo` si es necesario
+
+### Para usuarios avanzados:
 
 1. Configurar `config.ini` según tu proyecto
 2. (Opcional) Editar `requirements.txt` con tus dependencias
 3. Ejecutar `./install.sh` (una sola vez)
 4. Si añadiste nuevas dependencias después de la instalación, ejecuta `./install-libs.sh`
 5. Desarrollar tu aplicación en la carpeta del proyecto
-6. Usar `./start.sh` cada vez que quieras ejecutar la app
+6. Usar `./start.sh` o `./run.sh` cada vez que quieras ejecutar la app
 
 ---
 

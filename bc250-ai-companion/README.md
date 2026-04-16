@@ -1,98 +1,55 @@
 # BC-250 AI Companion
 
-Asistente de IA personal con memoria persistente, soporte multimodal y búsqueda web bajo demanda.
+Asistente de IA personal optimizado para AMD BC-250 y handhelds. Funciona 100% local sin necesidad de instalar Python ni dependencias.
 
-## Requisitos Previos
+## ⚡ Inicio Rápido
 
-1. **Ollama** instalado y ejecutándose en `http://localhost:11434`
-   - Instalar desde: https://ollama.ai
-   - Ejecutar: `ollama serve`
-
-2. **Python 3.8+** instalado
-
-3. **Modelos de IA** (opcionales pero recomendados):
-   - Whisper.cpp para STT (voz a texto)
-   - Piper TTS para TTS (texto a voz)
-
-## Instalación
+Desde el directorio raíz del proyecto:
 
 ```bash
-# Navegar al directorio del proyecto
-cd bc250-ai-companion
-
-# Crear entorno virtual (recomendado)
-python -m venv venv
-source venv/bin/activate  # En Windows: venv\Scripts\activate
-
-# Instalar dependencias
-pip install -r requirements.txt
+./run.sh
 ```
 
-## Uso
+Luego abre tu navegador en: **http://localhost:8080**
 
-### Iniciar el Servidor
+## 🎯 Características
 
-```bash
-cd backend
-python main.py
-```
-
-El servidor se iniciará en `http://0.0.0.0:8080`
-
-### Acceder a la Interfaz
-
-Abre tu navegador en: `http://localhost:8080`
-
-### Documentación API
-
-La documentación Swagger está disponible en: `http://localhost:8080/docs`
-
-## Configuración
-
-Las variables de entorno se pueden configurar en `backend/config.py`:
-
-- `BC250_HOST`: Host del servidor (default: 0.0.0.0)
-- `BC250_PORT`: Puerto del servidor (default: 8080)
-- `DEFAULT_MODEL`: Modelo Ollama por defecto (default: gemma4:e4b)
-- `OLLAMA_BASE_URL`: URL de Ollama (default: http://localhost:11434)
-
-## Características
-
-- ✅ Chat con streaming en tiempo real vía WebSocket
+- ✅ Chat con streaming en tiempo real
 - ✅ Memoria persistente por modelo
-- ✅ Búsqueda web bajo demanda (/web o "busca en internet")
-- ✅ Preferencias de usuario personalizables
-- ✅ Soporte para múltiples modelos de Ollama
-- ⚠️ STT (voz a texto) - requiere Whisper.cpp
-- ⚠️ TTS (texto a voz) - requiere Piper TTS
+- ✅ Búsqueda web bajo demanda
+- ✅ Voz a texto y texto a voz nativos con Gemma4:E4B
+- ✅ Optimizado para BC-250 (GPU RDNA + 16GB GDDR6)
+- ✅ Sin dependencias externas obligatorias
 
-## Estructura del Proyecto
+## 📁 Estructura
 
 ```
 bc250-ai-companion/
-├── backend/
-│   ├── main.py           # Servidor FastAPI principal
-│   ├── config.py         # Configuración centralizada
-│   ├── ollama_manager.py # Gestión de modelos Ollama
-│   ├── memory_core.py    # Sistema de memoria vectorial
-│   ├── stt_engine.py     # Motor de voz a texto
-│   ├── tts_engine.py     # Motor de texto a voz
-│   └── web_search.py     # Búsqueda web
-├── frontend/
-│   ├── index.html        # Interfaz principal
-│   ├── app.js            # Lógica del cliente
-│   └── style.css         # Estilos
-├── data/                  # Datos persistentes (auto-creado)
-│   ├── vector_db/        # Base de datos vectorial
-│   ├── logs/             # Logs del servidor
-│   ├── stt_models/       # Modelos STT
-│   └── tts_models/       # Modelos TTS
-└── requirements.txt      # Dependencias Python
+├── run.sh              # Script único de inicio
+├── backend/            # Servidor FastAPI
+│   └── main.py        # Punto de entrada
+├── frontend/          # Interfaz web
+└── data/              # Datos persistentes
 ```
 
-## Notas
+## 🔧 Configuración
 
-- Sin Ollama ejecutándose, las funciones de chat no estarán disponibles
-- Sin Whisper.cpp, la entrada por voz estará deshabilitada
-- Sin Piper TTS, la salida de audio estará deshabilitada
-- ChromaDB es opcional; si no está instalado, usa almacenamiento básico
+Edita `config.ini` si necesitas personalizar:
+
+```ini
+[OLLAMA]
+models = fredrezones55/Gemma-4-Uncensored-HauhauCS-Aggressive:e4b
+
+[APP]
+ports = 8080:8080
+```
+
+## 📚 Más Información
+
+- `../README.md` - Guía principal de instalación
+- `SETUP.md` - Configuración detallada
+- `docs/HARDWARE_GUIDE.md` - Hardware BC-250
+
+---
+
+**Hecho para Bazzite OS y AMD BC-250**

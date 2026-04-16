@@ -339,7 +339,15 @@ async function selectModel(name) {
         await fetch(`${API_BASE_URL}/api/models/load?model_name=${encodeURIComponent(name)}`, { method: 'POST' });
         AppState.currentModel = name;
         localStorage.setItem('currentModel', name);
+        
+        // Actualizar el indicador del modelo actual en la UI
+        const currentModelElement = document.getElementById('current-model');
+        if (currentModelElement) {
+            currentModelElement.textContent = name;
+        }
+        
         loadModels();
+        showToast(`Modelo cambiado a: ${name}`, 'success');
     } catch (e) {
         showToast('Model selection error', 'error');
     }
@@ -379,6 +387,12 @@ async function loadMemoryStats() {
 function loadPreferences() {
     const saved = localStorage.getItem('currentModel');
     if (saved) AppState.currentModel = saved;
+    
+    // Actualizar el indicador del modelo actual en la UI
+    const currentModelElement = document.getElementById('current-model');
+    if (currentModelElement && AppState.currentModel) {
+        currentModelElement.textContent = AppState.currentModel;
+    }
 }
 
 function applyTheme(theme) {

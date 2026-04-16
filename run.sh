@@ -235,7 +235,8 @@ else
     
     # Actualizar models si hay un modelo seleccionado
     if [ -n "$SELECTED_MODEL" ]; then
-        sed -i "s/^models = .*/models = $SELECTED_MODEL/" "$CONFIG_FILE"
+        # Usar | como delimitador para evitar problemas con / en nombres de modelo
+        sed -i "s|^models = .*|models = $SELECTED_MODEL|" "$CONFIG_FILE"
     fi
     
     log_success "Configuración actualizada"

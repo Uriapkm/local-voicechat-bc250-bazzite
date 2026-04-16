@@ -52,6 +52,12 @@ document.addEventListener('DOMContentLoaded', () => {
     loadModels();
     loadPreferences();
     
+    // Sincronizar el checkbox de TTS con el estado cargado
+    const autoTtsCheckbox = document.getElementById('auto-tts-toggle');
+    if (autoTtsCheckbox) {
+        autoTtsCheckbox.checked = AppState.audioEnabled;
+    }
+    
     elements.messageInput.addEventListener('input', function() {
         this.style.height = 'auto';
         this.style.height = Math.min(this.scrollHeight, 120) + 'px';
@@ -175,8 +181,16 @@ function handleWebSocketMessage(data) {
         updateStreamingMessage(data.content);
     } else if (data.type === 'complete') {
         hideTypingIndicator();
+        // Reproducir audio si está activado
+        if (AppState.audioEnabled && data.content) {
+            playResponseAudio(data.content);
+        }
     } else if (data.type === 'response') {
         addMessage(data.content, 'assistant');
+        // Reproducir audio si está activado (para respuestas no-streaming)
+        if (AppState.audioEnabled && data.content) {
+            playResponseAudio(data.content);
+        }
     }
 }
 
@@ -385,8 +399,14 @@ async function loadMemoryStats() {
 }
 
 function loadPreferences() {
-    const saved = localStorage.getItem('currentModel');
-    if (saved) AppState.currentModel = saved;
+    const savedModel = localStorage.getItem('currentModel');
+    if (savedModel) AppState.currentModel = savedModel;
+    
+    // Cargar preferencia de audio
+    const savedAudio = localStorage.getItem('audioEnabled');
+    if (savedAudio !== null) {
+        AppState.audioEnabled = savedAudio === 'true';
+    }
     
     // Actualizar el indicador del modelo actual en la UI
     const currentModelElement = document.getElementById('current-model');
@@ -618,6 +638,9 @@ async function loadVoices() {
         const list = document.getElementById('voices-list');
         if (!list) return;
         
+        // Obtener la voz actualmente seleccionada
+        const currentVoiceId = localStorage.getItem('currentVoice');
+        
         list.innerHTML = '';
         
         if (!data.profiles || data.profiles.length === 0) {
@@ -628,6 +651,10 @@ async function loadVoices() {
         data.profiles.forEach(profile => {
             const div = document.createElement('div');
             div.className = 'profile-item';
+            // Marcar visualmente la voz seleccionada
+            if (profile.id === currentVoiceId) {
+                div.classList.add('selected');
+            }
             div.innerHTML = `
                 <div class="profile-header">
                     <span class="profile-name">${escapeHtml(profile.name)}</span>
@@ -739,6 +766,8 @@ async function selectVoice(id) {
         const data = await res.json();
         
         if (data.success) {
+            // Guardar la voz seleccionada en localStorage
+            localStorage.setItem('currentVoice', id);
             showToast('Voz aplicada al sistema TTS', 'success');
             loadVoices();
         } else {
@@ -866,6 +895,52 @@ async function testVoice(id) {
     } catch (e) {
         console.error('Error testing voice:', e);
         showToast('Error al probar la voz', 'error');
+    }
+}
+
+/**
+ * Reproduce la respuesta de audio del asistente
+ * @param {string} text - Texto a convertir a voz
+ */
+async function playResponseAudio(text) {
+    if (!AppState.audioEnabled || !text) return;
+    
+    try {
+        // Obtener la voz actual si está configurada
+        const currentVoice = localStorage.getItem('currentVoice');
+        
+        const params = new URLSearchParams();
+        params.append('text', text);
+        if (currentVoice) {
+            params.append('voice', currentVoice);
+        }
+        
+        // Sintetizar audio
+        const res = await fetch(`${API_BASE_URL}/api/audio/synthesize?${params.toString()}`, {
+            method: 'POST'
+        });
+        
+        if (!res.ok) {
+            console.warn('No se pudo sintetizar el audio');
+            return;
+        }
+        
+        // Obtener blob y reproducir
+        const audioBlob = await res.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        
+        audio.play();
+        
+        audio.onended = () => {
+            URL.revokeObjectURL(audioUrl);
+        };
+        
+        audio.onerror = (e) => {
+            console.error('Error reproduciendo audio:', e);
+        };
+    } catch (e) {
+        console.error('Error en reproducción de audio:', e);
     }
 }
 

@@ -3,26 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BC-250 AI Companion</title>
+    <title>BC-250 AI Companion | Dev Edition</title>
     <link rel="stylesheet" href="/static/style.css">
     <link rel="manifest" href="/static/manifest.json">
-    <meta name="theme-color" content="#4a90d9">
-    <meta name="description" content="Tu compañero de IA personal y privado">
+    <meta name="theme-color" content="#61DAFB">
+    <meta name="description" content="Tu compañero de IA personal y privado - Developer Edition">
+    <!-- Google Fonts - Fira Code para estilo programmer -->
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="app-container">
         <!-- Header -->
         <header class="header">
             <div class="header-content">
-                <h1>🤖 BC-250 AI Companion</h1>
+                <div class="logo-section">
+                    <span class="logo-icon">⚡</span>
+                    <h1>BC-250 <span class="subtitle">AI Companion</span></h1>
+                </div>
                 <div class="status-indicators">
-                    <span class="status-badge" id="connection-status">
+                    <span class="status-badge status-success" id="connection-status">
                         <span class="status-dot"></span>
-                        <span class="status-text">Conectado</span>
+                        <span class="status-text">Online</span>
                     </span>
-                    <span class="status-badge" id="model-indicator">
-                        🧠 <span id="current-model">gemma4:e4b</span>
+                    <span class="status-badge status-model" id="model-indicator">
+                        <span class="model-icon">🧠</span>
+                        <span class="model-label">Model:</span>
+                        <span class="model-name" id="current-model">gemma4:e4b</span>
                     </span>
+                    <button class="quick-action-btn" id="new-chat-btn" title="Nuevo Chat">
+                        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                    </button>
                 </div>
             </div>
         </header>
@@ -34,39 +47,64 @@
                 <div class="message assistant-message">
                     <div class="message-avatar">🤖</div>
                     <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-sender">BC-250 Assistant</span>
+                            <span class="message-timestamp">Ahora</span>
+                        </div>
                         <p>¡Hola! Soy tu compañero de IA personal. Estoy aquí para ayudarte con lo que necesites. Puedo recordar nuestras conversaciones y aprender de tus preferencias.</p>
-                        <p class="message-timestamp">Ahora</p>
+                        <div class="message-actions">
+                            <button class="msg-action-btn" title="Copiar">
+                                <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
             
             <!-- Indicador de escritura -->
             <div class="typing-indicator" id="typing-indicator" style="display: none;">
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
+                <span class="typing-text">BC-250 está pensando</span>
+                <div class="typing-dots">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
             </div>
         </main>
 
         <!-- Controles de Entrada -->
         <footer class="input-container">
-            <!-- Controles de Voz -->
-            <div class="voice-controls">
-                <button class="voice-btn" id="mic-btn" title="Activar micrófono (Push to Talk)">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <!-- Barra de herramientas -->
+            <div class="toolbar">
+                <button class="tool-btn" id="attach-btn" title="Adjuntar archivo">
+                    <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                    </svg>
+                </button>
+                <button class="tool-btn" id="web-search-btn" title="Búsqueda web (/web)">
+                    <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </button>
+                <div class="toolbar-divider"></div>
+                <button class="tool-btn" id="mic-btn" title="Activar micrófono (Push to Talk)">
+                    <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                         <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                         <line x1="12" y1="19" x2="12" y2="23"></line>
                         <line x1="8" y1="23" x2="16" y2="23"></line>
                     </svg>
                 </button>
-                
-                <button class="toggle-btn" id="audio-toggle" title="Activar/desactivar audio automático">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <button class="tool-btn audio-toggle-btn" id="audio-toggle" title="Activar/desactivar audio automático">
+                    <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
                         <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
                     </svg>
-                    <span class="toggle-label">Audio ON</span>
+                    <span class="toggle-status">ON</span>
                 </button>
             </div>
 
@@ -74,11 +112,11 @@
             <div class="input-wrapper">
                 <textarea 
                     id="message-input" 
-                    placeholder="Escribe tu mensaje... (usa /web para búsqueda en internet)"
+                    placeholder="Escribe tu mensaje... (Shift+Enter para nueva línea, /web para búsqueda)"
                     rows="1"
                     autocomplete="off"
                 ></textarea>
-                <button class="send-btn" id="send-btn" title="Enviar mensaje">
+                <button class="send-btn" id="send-btn" title="Enviar mensaje (Enter)">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="22" y1="2" x2="11" y2="13"></line>
                         <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
@@ -100,18 +138,36 @@
     <div class="modal" id="settings-modal">
         <div class="modal-content modal-large">
             <div class="modal-header">
-                <h2>⚙️ Configuración</h2>
-                <button class="close-btn" id="close-settings">&times;</button>
+                <div class="modal-title">
+                    <span class="modal-icon">⚙️</span>
+                    <h2>Configuración</h2>
+                </div>
+                <button class="close-btn" id="close-settings" title="Cerrar">&times;</button>
             </div>
             
             <div class="modal-body">
                 <!-- Navegación por Pestañas -->
                 <div class="settings-tabs">
-                    <button class="tab-btn active" data-tab="models">🧠 Modelos</button>
-                    <button class="tab-btn" data-tab="personalities">🎭 Personalidades</button>
-                    <button class="tab-btn" data-tab="voices">🔊 Voces</button>
-                    <button class="tab-btn" data-tab="memory">💾 Memoria</button>
-                    <button class="tab-btn" data-tab="preferences">🎛️ Preferencias</button>
+                    <button class="tab-btn active" data-tab="models">
+                        <span class="tab-icon">🧠</span>
+                        <span class="tab-label">Modelos</span>
+                    </button>
+                    <button class="tab-btn" data-tab="personalities">
+                        <span class="tab-icon">🎭</span>
+                        <span class="tab-label">Personalidades</span>
+                    </button>
+                    <button class="tab-btn" data-tab="voices">
+                        <span class="tab-icon">🔊</span>
+                        <span class="tab-label">Voces</span>
+                    </button>
+                    <button class="tab-btn" data-tab="memory">
+                        <span class="tab-icon">💾</span>
+                        <span class="tab-label">Memoria</span>
+                    </button>
+                    <button class="tab-btn" data-tab="preferences">
+                        <span class="tab-icon">🎛️</span>
+                        <span class="tab-label">Preferencias</span>
+                    </button>
                 </div>
 
                 <!-- Contenido de Pestañas -->

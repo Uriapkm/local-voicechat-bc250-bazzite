@@ -87,6 +87,9 @@ class MemoryMigrationRequest(BaseModel):
 active_connections: Dict[int, WebSocket] = {}
 conversation_history: Dict[str, List[dict]] = {}
 
+# Modelo activo actual (se puede cambiar desde la GUI)
+active_model: str = DEFAULT_MODEL
+
 # Inicializar gestores
 ollama_manager = OllamaManager()
 tts_engine = TTSEngine()
@@ -156,11 +159,15 @@ async def get_models():
 @app.post("/api/models/load")
 async def load_model(model_name: str):
     """Cambiar modelo activo"""
+    global active_model
     logger.info(f"Cambiando a modelo: {model_name}")
     
     # Verificar si el modelo está instalado
     if not ollama_manager.is_model_installed(model_name):
         raise HTTPException(status_code=404, detail=f"Modelo {model_name} no encontrado")
+    
+    # Actualizar el modelo activo global
+    active_model = model_name
     
     return {
         "success": True,
@@ -189,8 +196,8 @@ async def chat(request: ChatRequest):
     """Endpoint principal de chat"""
     logger.info(f"Mensaje recibido: {request.message[:50]}...")
     
-    # Determinar modelo a usar
-    model = request.model or DEFAULT_MODEL
+    # Determinar modelo a usar (priorizar el request, luego el activo global, luego el default)
+    model = request.model or active_model or DEFAULT_MODEL
     
     # Verificar Ollama disponible
     if not ollama_manager.check_ollama_installed():
@@ -290,8 +297,8 @@ async def websocket_chat(websocket: WebSocket, client_id: int):
     active_connections[client_id] = websocket
     logger.info(f"Cliente {client_id} conectado vía WebSocket")
     
-    # Usar modelo por defecto y memoria
-    model = DEFAULT_MODEL
+    # Usar modelo activo global y memoria
+    model = active_model or DEFAULT_MODEL
     memory = get_memory_for_model(model)
     
     try:
@@ -303,6 +310,8 @@ async def websocket_chat(websocket: WebSocket, client_id: int):
                 message_data = json.loads(data)
                 message = message_data.get("message", "")
                 use_web = message_data.get("use_web", False)
+                # Permitir que el cliente especifique un modelo diferente
+                model = message_data.get("model") or active_model or DEFAULT_MODEL
             except json.JSONDecodeError:
                 message = data
                 use_web = False
@@ -464,7 +473,7 @@ async def migrate_memory(request: MemoryMigrationRequest):
 @app.get("/api/memory/export")
 async def export_memory(model: Optional[str] = None):
     """Exportar memoria de un modelo"""
-    model_name = model or DEFAULT_MODEL
+    model_name = model or active_model or DEFAULT_MODEL
     logger.info(f"Exportando memoria del modelo: {model_name}")
     
     try:
@@ -485,7 +494,7 @@ async def export_memory(model: Optional[str] = None):
 @app.post("/api/memory/clear")
 async def clear_memory(model: Optional[str] = None):
     """Limpiar memoria de un modelo"""
-    model_name = model or DEFAULT_MODEL
+    model_name = model or active_model or DEFAULT_MODEL
     logger.info(f"Limpiando memoria del modelo: {model_name}")
     
     try:
@@ -644,8 +653,8 @@ async def chat_with_audio(
         audio_bytes = await audio_file.read()
         audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
         
-        # Usar modelo por defecto si no se especifica
-        model_name = model or DEFAULT_MODEL
+        # Usar modelo activo global si no se especifica
+        model_name = model or active_model or DEFAULT_MODEL
         
         # Obtener memoria para este modelo
         memory = get_memory_for_model(model_name)

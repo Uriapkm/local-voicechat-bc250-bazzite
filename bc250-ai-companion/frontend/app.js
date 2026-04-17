@@ -6,7 +6,7 @@ const API_BASE_URL = window.location.origin;
 const WS_URL = `ws://${window.location.host}/ws/chat`;
 
 const AppState = {
-    currentModel: 'gemma4:e4b',
+    currentModel: null,  // Se cargará dinámicamente desde el backend
     audioEnabled: true,
     isRecording: false,
     conversationId: generateUUID(),
@@ -316,6 +316,19 @@ async function loadModels() {
     try {
         const res = await fetch(`${API_BASE_URL}/api/models`);
         const data = await res.json();
+        
+        // Establecer el modelo por defecto desde el backend si no hay uno seleccionado
+        if (!AppState.currentModel && data.default_model) {
+            AppState.currentModel = data.default_model;
+            localStorage.setItem('currentModel', data.default_model);
+            
+            // Actualizar el indicador del modelo actual en la UI
+            const currentModelElement = document.getElementById('current-model');
+            if (currentModelElement) {
+                currentModelElement.textContent = data.default_model;
+            }
+        }
+        
         renderModelsList(data.models || []);
     } catch (e) {
         console.error('Load models error:', e);
@@ -903,7 +916,7 @@ async function scanUSBForProfiles(type) {
 }
 
 async function migrateMemory() {
-    const sourceModel = prompt('Modelo de origen (ej: gemma4:e4b):', AppState.currentModel);
+    const sourceModel = prompt('Modelo de origen (ej: llama3.2):', AppState.currentModel);
     
     if (!sourceModel) return;
     

@@ -12,8 +12,8 @@ services:
     environment:
       BC250_HOST: "0.0.0.0"
       BC250_PORT: "8080"
-      OLLAMA_BASE_URL: "http://host.docker.internal:11434"  # Para acceder a Ollama en host
-      DEFAULT_MODEL: "gemma4:e4b"
+      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434}"
+      DEFAULT_MODEL: "${DEFAULT_MODEL:-gemma4:e4b}"
       LOG_LEVEL: "INFO"
       PYTHONUNBUFFERED: "1"
     volumes:

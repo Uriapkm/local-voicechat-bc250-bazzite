@@ -700,4 +700,47 @@ if [ "$INSTALL_OLLAMA" = "true" ]; then
 fi
 
 log_info "Ejecutando: $APP_START_CMD"
+log_info "La interfaz gráfica estará disponible en http://localhost:8080"
+
+# Intentar abrir el navegador en el host (fuera del contenedor)
+open_browser() {
+    local url="$1"
+    log_info "Abriendo navegador en $url..."
+    
+    # Detectar sistema operativo y abrir navegador
+    if command -v xdg-open &> /dev/null; then
+        # Linux
+        xdg-open "$url" &
+    elif command -v gnome-open &> /dev/null; then
+        # GNOME
+        gnome-open "$url" &
+    elif command -v kde-open &> /dev/null; then
+        # KDE
+        kde-open "$url" &
+    elif command -v sensible-browser &> /dev/null; then
+        # Debian/Ubuntu
+        sensible-browser "$url" &
+    elif command -v firefox &> /dev/null; then
+        firefox "$url" &
+    elif command -v google-chrome &> /dev/null; then
+        google-chrome "$url" &
+    elif command -v chromium &> /dev/null; then
+        chromium "$url" &
+    else
+        log_warn "No se pudo detectar un navegador para abrir automáticamente"
+        log_info "Abre manualmente: http://localhost:8080"
+        return 1
+    fi
+    
+    log_success "Navegador abierto"
+    return 0
+}
+
+# Esperar un momento para que el servidor inicie antes de abrir el navegador
+sleep 2
+
+# Abrir navegador en segundo plano (no bloqueante)
+open_browser "http://localhost:8080" || true
+
+# Ejecutar el contenedor (esto es bloqueante hasta que el usuario lo cierre)
 distrobox enter "$CONTAINER_NAME" -- bash -c "$CMD"

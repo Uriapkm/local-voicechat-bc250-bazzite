@@ -122,6 +122,11 @@ async def root():
     else:
         return {"message": "Frontend no encontrado en " + str(frontend_path)}
 
+@app.get("/index.html")
+async def index_html():
+    """Redirigir index.html explícitamente"""
+    return await root()
+
 @app.get("/health")
 async def health_check():
     """Endpoint de verificación de salud"""
@@ -894,11 +899,25 @@ async def get_memory_stats():
     logger.info(f"Estadísticas de memoria: {len(stats['models'])} modelos activos")
     return stats
 
-# Montar frontend estático
+# Montar frontend estático con rutas correctas
 try:
     frontend_dir = Path(__file__).parent.parent / "frontend"
     if frontend_dir.exists():
+        # Servir archivos estáticos del frontend
         app.mount("/static", StaticFiles(directory=str(frontend_dir)), name="static")
+        
+        # Añadir ruta para servir assets directamente desde raíz para compatibilidad
+        @app.get("/style.css")
+        async def get_style():
+            return FileResponse(frontend_dir / "style.css")
+        
+        @app.get("/app.js")
+        async def get_app_js():
+            return FileResponse(frontend_dir / "app.js")
+        
+        @app.get("/manifest.json")
+        async def get_manifest():
+            return FileResponse(frontend_dir / "manifest.json")
     else:
         logger.warning(f"Directorio frontend no encontrado en {frontend_dir}")
 except Exception as e:

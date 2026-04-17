@@ -1,1 +1,6 @@
-Nothing needs to be added to the .gitignore file based on the provided file changes. The modified files (`install.sh` and `run.sh`) are shell scripts that should typically be tracked in version control.
+```
+# Configuration and scripts
+config.ini
+install.sh
+run.sh
+```

@@ -1,1 +1,1 @@
-Nothing should be ignored based on the provided file changes. The modified files (`install.sh` and `run.sh`) are shell script source files that should be tracked in version control.
+Nothing needs to be added to the .gitignore file based on the provided file changes. The modified files (`install.sh` and `run.sh`) are shell scripts that should typically be tracked in version control.

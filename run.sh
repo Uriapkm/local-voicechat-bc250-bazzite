@@ -457,6 +457,8 @@ if [ "$CONTAINER_EXISTS" = "false" ]; then
     if [[ "$CONTAINER_IMAGE" == *"fedora"* ]] || [[ "$CONTAINER_IMAGE" == *"alma"* ]] || [[ "$CONTAINER_IMAGE" == *"rocky"* ]]; then
         PKG_MANAGER="dnf install -y"
         PYTHON_PKG="python${PYTHON_VERSION} python${PYTHON_VERSION}-pip python${PYTHON_VERSION}-devel python${PYTHON_VERSION}-tkinter"
+        # Curl es esencial para health checks y descargas
+        SYSTEM_TOOLS="curl wget"
     elif [[ "$CONTAINER_IMAGE" == *"ubuntu"* ]] || [[ "$CONTAINER_IMAGE" == *"debian"* ]]; then
         PKG_MANAGER="apt-get install -y"
         run_in_container bash -c "apt-get update -qq" || true
@@ -466,13 +468,23 @@ if [ "$CONTAINER_EXISTS" = "false" ]; then
             run_in_container bash -c "apt-get update -qq" || true
         fi
         PYTHON_PKG="python${PYTHON_VERSION} python${PYTHON_VERSION}-venv python${PYTHON_VERSION}-dev python${PYTHON_VERSION}-tk"
+        SYSTEM_TOOLS="curl wget"
     elif [[ "$CONTAINER_IMAGE" == *"arch"* ]] || [[ "$CONTAINER_IMAGE" == *"manjaro"* ]]; then
         PKG_MANAGER="pacman -S --noconfirm"
         PYTHON_PKG="python${PYTHON_VERSION} python-pip python-virtualenv"
+        SYSTEM_TOOLS="curl wget"
     else
         PKG_MANAGER="dnf install -y"
         PYTHON_PKG="python${PYTHON_VERSION} python${PYTHON_VERSION}-pip python${PYTHON_VERSION}-devel"
+        SYSTEM_TOOLS="curl wget"
     fi
+    
+    # Instalar herramientas del sistema primero (curl es crítico para health checks)
+    log_step "Instalando herramientas del sistema (curl, wget)..."
+    run_in_container bash -c "$PKG_MANAGER $SYSTEM_TOOLS" || {
+        log_warn "No se pudieron instalar herramientas del sistema, algunos checks podrían fallar"
+    }
+    log_success "Herramientas instaladas"
     
     # Instalar Python
     log_step "Instalando Python $PYTHON_VERSION..."

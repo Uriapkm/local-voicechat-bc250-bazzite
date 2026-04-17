@@ -2,16 +2,25 @@
 
 # BC-250 AI Companion - Script de inicio
 # Verifica requisitos y inicia el servidor
+# Funciona independientemente de la ruta donde se encuentre el proyecto
 
 set -e
 
+# Obtener el directorio donde está este script (ruta absoluta)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
 echo "🚀 BC-250 AI Companion - Iniciando..."
+echo "   Directorio del proyecto: $PROJECT_ROOT"
 
 # Colores para output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+
+# Cambiar al directorio raíz del proyecto
+cd "$PROJECT_ROOT"
 
 # Verificar Python
 echo "📋 Verificando Python..."

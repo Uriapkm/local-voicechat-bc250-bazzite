@@ -13,13 +13,19 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
+
+# Configuración de reintentos para health check
+OLLAMA_MAX_RETRIES=30
+OLLAMA_RETRY_DELAY=2
 
 # Función para imprimir mensajes
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+log_step() { echo -e "${CYAN}[STEP]${NC} $1"; }
 
 # Función para manejar errores y limpieza
 cleanup() {
@@ -33,6 +39,71 @@ cleanup() {
 }
 
 trap cleanup EXIT
+
+# Detectar backend de contenedores (podman o docker)
+# Prioriza podman en Bazzite, pero funciona con ambos
+detect_container_backend() {
+    if command -v podman &> /dev/null; then
+        CONTAINER_BACKEND="podman"
+        log_success "Backend detectado: podman"
+    elif command -v docker &> /dev/null; then
+        CONTAINER_BACKEND="docker"
+        log_success "Backend detectado: docker"
+    else
+        log_error "Ni docker ni podman están disponibles"
+        log_info "En Bazzite asegúrate de tener Docker o Podman configurado"
+        exit 1
+    fi
+}
+
+# Health check para esperar que Ollama esté listo
+wait_for_ollama() {
+    local container_name="$1"
+    local max_retries="${2:-$OLLAMA_MAX_RETRIES}"
+    local retry_delay="${3:-$OLLAMA_RETRY_DELAY}"
+    local retry_count=0
+    
+    log_info "Esperando a que Ollama esté disponible..."
+    
+    while [ $retry_count -lt $max_retries ]; do
+        # Intentar conectar con Ollama dentro del contenedor
+        if distrobox enter "$container_name" -- curl -s http://localhost:11434/api/tags &> /dev/null; then
+            log_success "Ollama está listo"
+            return 0
+        fi
+        
+        retry_count=$((retry_count + 1))
+        log_info "Intento $retry_count/$max_retries... esperando ${retry_delay}s"
+        sleep "$retry_delay"
+    done
+    
+    log_error "Ollama no respondió después de $((max_retries * retry_delay)) segundos"
+    return 1
+}
+
+# Función para limpiar contenedor existente de forma completa
+cleanup_container() {
+    local container_name="$1"
+    
+    log_warn "Limpiando contenedor existente: $container_name"
+    
+    # Detener y eliminar contenedor si existe
+    if distrobox list --quiet | grep -q "^$container_name "; then
+        distrobox rm -f "$container_name" 2>/dev/null || true
+        log_success "Contenedor eliminado"
+    else
+        log_info "No había contenedor existente para eliminar"
+    fi
+    
+    # También intentar limpiar con el backend directo por si queda algo
+    if [ "$CONTAINER_BACKEND" = "podman" ]; then
+        podman rm -f "$container_name" 2>/dev/null || true
+        podman volume rm "${container_name}-vol" 2>/dev/null || true
+    else
+        docker rm -f "$container_name" 2>/dev/null || true
+        docker volume rm "${container_name}-vol" 2>/dev/null || true
+    fi
+}
 
 # Verificar que config.ini existe
 CONFIG_FILE="${CONFIG_FILE:-config.ini}"
@@ -97,6 +168,10 @@ echo "App: $APP_START_CMD"
 echo "==============================="
 echo ""
 
+# Detectar backend de contenedores (podman/docker)
+log_step "Detectando backend de contenedores..."
+detect_container_backend
+
 # Verificar dependencias del host
 log_info "Verificando dependencias del sistema..."
 
@@ -109,12 +184,8 @@ if ! command -v distrobox &> /dev/null; then
 fi
 log_success "distrobox encontrado"
 
-if ! command -v docker &> /dev/null && ! command -v podman &> /dev/null; then
-    log_error "Ni docker ni podman están disponibles"
-    log_info "En Bazzite asegúrate de tener Docker o Podman configurado"
-    exit 1
-fi
-log_success "Backend de contenedores encontrado"
+# El backend ya fue detectado arriba, solo confirmamos
+log_success "Backend ($CONTAINER_BACKEND) disponible"
 
 # Construir opciones de puertos
 PORT_OPTIONS=""
@@ -129,12 +200,20 @@ log_info "Verificando contenedor '$CONTAINER_NAME'..."
 
 if distrobox list --quiet | grep -q "^$CONTAINER_NAME "; then
     log_warn "El contenedor '$CONTAINER_NAME' ya existe"
-    read -p "¿Quieres eliminarlo y crear uno nuevo? (y/N): " confirm
-    if [[ "$confirm" =~ ^[Yy]$ ]]; then
-        log_info "Eliminando contenedor existente..."
-        distrobox rm -f "$CONTAINER_NAME" || true
+    
+    # Verificar si el contenedor está en estado saludable
+    if ! distrobox enter "$CONTAINER_NAME" -- echo "test" &> /dev/null; then
+        log_warn "El contenedor existe pero no responde correctamente"
+        log_info "Eliminando y recreando..."
+        cleanup_container "$CONTAINER_NAME"
     else
-        log_info "Usando contenedor existente"
+        read -p "¿Quieres eliminarlo y crear uno nuevo? (y/N): " confirm
+        if [[ "$confirm" =~ ^[Yy]$ ]]; then
+            log_info "Eliminando contenedor existente..."
+            cleanup_container "$CONTAINER_NAME"
+        else
+            log_info "Usando contenedor existente"
+        fi
     fi
 fi
 
@@ -142,12 +221,34 @@ fi
 if ! distrobox list --quiet | grep -q "^$CONTAINER_NAME "; then
     log_info "Creando contenedor Distrobox '$CONTAINER_NAME'..."
     
+    # Crear directorios locales para volúmenes (evitar errores de permisos)
+    LOCAL_DATA_DIR="$(pwd)/data"
+    LOCAL_MODELS_DIR="$(pwd)/models"
+    
+    mkdir -p "$LOCAL_DATA_DIR" "$LOCAL_MODELS_DIR" || {
+        log_error "No se pudieron crear los directorios locales para volúmenes"
+        exit 1
+    }
+    log_success "Directorios locales creados: $LOCAL_DATA_DIR, $LOCAL_MODELS_DIR"
+    
+    # Convertir a ruta absoluta para el montaje
+    PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+    MOUNT_SOURCE="$PROJECT_ROOT"
+    
+    # Flags adicionales para mejor compatibilidad en sistemas inmutables como Bazzite
+    ADDITIONAL_FLAGS="--volume $MOUNT_SOURCE:$MOUNT_PATH"
+    
+    # Añadir flags específicos para podman en Bazzite si es necesario
+    if [ "$CONTAINER_BACKEND" = "podman" ]; then
+        ADDITIONAL_FLAGS="$ADDITIONAL_FLAGS --userns=keep-id"
+    fi
+    
     distrobox create \
         --name "$CONTAINER_NAME" \
         --image "$CONTAINER_IMAGE" \
         --yes \
         $PORT_OPTIONS \
-        --additional-flags "--volume $PWD:$MOUNT_PATH"
+        --additional-flags "$ADDITIONAL_FLAGS"
     
     log_success "Contenedor creado exitosamente"
 else
@@ -238,19 +339,47 @@ if [ "$INSTALL_OLLAMA" = "true" ]; then
         log_success "Ollama instalado"
     fi
     
-    # Descargar modelos
-    log_info "Descargando modelos: $OLLAMA_MODELS"
+    # Iniciar Ollama serve y esperar a que esté listo con health check
+    log_step "Iniciando servidor Ollama..."
+    run_in_container bash -c "ollama serve > /dev/null 2>&1 &" || true
+    
+    # Health check inteligente: esperar a que Ollama responda antes de descargar
+    if ! wait_for_ollama "$CONTAINER_NAME"; then
+        log_error "No se pudo iniciar Ollama correctamente"
+        exit 1
+    fi
+    
+    # Descargar modelos con verificación
+    log_step "Descargando modelo(s): $OLLAMA_MODELS"
+    DOWNLOAD_FAILED=false
     for model in $OLLAMA_MODELS; do
         if [ -n "$model" ]; then
-            log_info "Descargando modelo: $model"
-            # Iniciar ollama serve en background y descargar
-            run_in_container bash -c "ollama serve > /dev/null 2>&1 &" || true
-            sleep 2
-            run_in_container bash -c "ollama pull $model" || {
-                log_warn "No se pudo descargar el modelo $model"
-            }
+            log_info "Descargando: $model"
+            
+            # Verificar si el modelo ya existe antes de descargar
+            if run_in_container bash -c "ollama list | grep -q '$model'"; then
+                log_info "El modelo '$model' ya está disponible, saltando descarga"
+            else
+                run_in_container bash -c "ollama pull $model" || {
+                    log_warn "No se pudo descargar $model"
+                    DOWNLOAD_FAILED=true
+                }
+            fi
         fi
     done
+    
+    if [ "$DOWNLOAD_FAILED" = "true" ]; then
+        log_warn "Algunos modelos no se pudieron descargar, pero puedes intentarlo manualmente después"
+    fi
+    
+    # Validación post-instalación: verificar que Ollama funciona
+    log_step "Validando instalación de Ollama..."
+    if run_in_container bash -c "ollama list | grep -q ."; then
+        log_success "Ollama instalado y validado correctamente"
+    else
+        log_warn "Ollama está instalado pero no hay modelos disponibles"
+    fi
+    
     log_success "Modelos de Ollama listos"
 else
     log_info "Instalación de Ollama saltada (install_ollama = false)"

@@ -1,164 +1,45 @@
-```
+```bash
+# Environment files
+.env
+.env.local
+*.env.*
+
+# Logs and temporary files
+*.log
+*.tmp
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
 # Dependencies
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+node_modules/
 .venv/
 venv/
-.env
-*.env*
+__pycache__/
+.mypy_cache/
+.pytest_cache/
 
 # Build artifacts
 dist/
 build/
-*.egg-info/
+target/
+*.pyc
+*.class
+*.o
+*.obj
+*.out
 
-# Logs
-*.log
-
-# OS generated files
+# System files
 .DS_Store
 Thumbs.db
 
-# Editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-*.tmp
-
 # Coverage reports
-.coverage
-htmlcov/
 coverage/
-
-# Python specific
-*.py[cod]
-*$py.class
-*$py.o
-*$py.d
-**/__pycache__/
-**/*.py[co]
-*.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# PyInstaller
-*.manifest
-*.spec
-
-# Unit test / coverage reports
 htmlcov/
-.tox/
-.nox/
-.coverage*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-
-# Translations
-*.mo
-*.pot
-
-# Django
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask
-instance/
-.webassets-cache
-
-# Scrapy
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-.pybuilder/
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-.python-version
-
-# pipenv
-Pipfile.lock
-
-# PEP 582
-__pypackages__/
-
-# Celery
-celerybeat-schedule
-celerybeat.pid
-
-# Sage
-*.sage.py
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre
-.pyre/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+.coverage
 
 # Compressed files
 *.zip

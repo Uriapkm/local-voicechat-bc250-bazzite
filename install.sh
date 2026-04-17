@@ -154,7 +154,7 @@ VENV_PATH=$(get_config "PYTHON" "venv_path" "/home/user/ai-project/venv")
 INSTALL_OLLAMA=$(get_config "OLLAMA" "install_ollama" "true")
 OLLAMA_MODELS=$(get_config "OLLAMA" "models" "llama3.2")
 
-APP_START_CMD=$(get_config "APP" "start_command" "cd bc250-ai-companion/backend && python3 main.py")
+APP_START_CMD=$(get_config "APP" "start_command" "cd backend && python3 main.py")
 APP_PORTS=$(get_config "APP" "ports" "8080:8080")
 
 log_success "Configuración cargada correctamente"
@@ -434,7 +434,7 @@ get_config() {
 
 CONTAINER_NAME=$(get_config "CONTAINER" "name" "ai-assistant-box")
 VENV_PATH=$(get_config "PYTHON" "venv_path" "/home/user/ai-project/venv")
-START_CMD=$(get_config "APP" "start_command" "cd bc250-ai-companion/backend && python3 main.py")
+START_CMD=$(get_config "APP" "start_command" "cd backend && python3 main.py")
 INSTALL_OLLAMA=$(get_config "OLLAMA" "install_ollama" "true")
 
 # Verificar contenedor
